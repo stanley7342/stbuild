@@ -1,0 +1,363 @@
+{
+  "name": "stbuild",
+  "displayName": "史丹利測試",
+  "description": "史丹利測試, flash, and serial monitor for CMake-based embedded projects",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.110.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:CMakeLists.txt"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mcuBuild.build",
+        "title": "MCU: Build",
+        "icon": "$(play)"
+      },
+      {
+        "command": "mcuBuild.clean",
+        "title": "MCU: Clean",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mcuBuild.rebuild",
+        "title": "MCU: Rebuild (Clean + Build)",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mcuBuild.flash",
+        "title": "MCU: Flash Firmware",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "mcuBuild.openSerialMonitor",
+        "title": "MCU: Open Serial Monitor",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "mcuBuild.selectBuildType",
+        "title": "MCU: Select Build Type"
+      },
+      {
+        "command": "mcuBuild.selectSerialPort",
+        "title": "MCU: Select Serial Port"
+      },
+      {
+        "command": "mcuBuild.selectSourceFolder",
+        "title": "MCU: Select Source Folder",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "mcuBuild.selectConfigFile",
+        "title": "MCU: Select Config File",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "mcuBuild.openConfigFile",
+        "title": "MCU: Open Config File Editor",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "mcuBuild.clearConfigFile",
+        "title": "MCU: Clear Config File",
+        "icon": "$(close)"
+      },
+      {
+        "command": "mcuBuild.openFile",
+        "title": "MCU: Open File"
+      },
+      {
+        "command": "mcuBuild.revealOutputFile",
+        "title": "MCU: Reveal in Explorer",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "mcuBuild.installArmToolchain",
+        "title": "MCU: Install ARM Cortex-M Toolchain",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "mcuBuild.installCmake",
+        "title": "MCU: Install CMake",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "mcuBuild.installNinja",
+        "title": "MCU: Install Ninja",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "mcuBuild.removeArmToolchain",
+        "title": "MCU: Remove ARM Cortex-M Toolchain",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mcuBuild.removeCmake",
+        "title": "MCU: Remove CMake",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mcuBuild.removeNinja",
+        "title": "MCU: Remove Ninja",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mcuBuild.refreshToolchain",
+        "title": "MCU: Refresh Toolchain Status",
+        "icon": "$(sync)"
+      }
+    ],
+    "configuration": {
+      "title": "史丹利測試",
+      "properties": {
+        "mcuBuild.cmake.buildDirectory": {
+          "type": "string",
+          "default": "${workspaceFolder}/build",
+          "description": "CMake build output directory"
+        },
+        "mcuBuild.cmake.buildType": {
+          "type": "string",
+          "enum": [
+            "Debug",
+            "Release",
+            "RelWithDebInfo",
+            "MinSizeRel"
+          ],
+          "default": "Debug",
+          "description": "CMake build type"
+        },
+        "mcuBuild.cmake.configFile": {
+          "type": "string",
+          "default": "",
+          "description": "CMake initial cache file passed via -C (e.g. a .config or .cmake file)"
+        },
+        "mcuBuild.cmake.toolchainFile": {
+          "type": "string",
+          "default": "",
+          "description": "Path to CMake toolchain file (e.g. arm-none-eabi toolchain)"
+        },
+        "mcuBuild.cmake.generator": {
+          "type": "string",
+          "default": "",
+          "description": "CMake generator (e.g. 'Ninja', 'Unix Makefiles'). Leave empty for default."
+        },
+        "mcuBuild.cmake.configureArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional CMake configure arguments"
+        },
+        "mcuBuild.cmake.buildArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional CMake build arguments (appended after --build <dir>)"
+        },
+        "mcuBuild.flash.tool": {
+          "type": "string",
+          "enum": [
+            "openocd",
+            "esptool",
+            "custom"
+          ],
+          "default": "openocd",
+          "description": "Flash tool to use"
+        },
+        "mcuBuild.flash.openocdPath": {
+          "type": "string",
+          "default": "openocd",
+          "description": "Path to openocd executable"
+        },
+        "mcuBuild.flash.openocdInterface": {
+          "type": "string",
+          "default": "interface/stlink.cfg",
+          "description": "OpenOCD interface config file"
+        },
+        "mcuBuild.flash.openocdTarget": {
+          "type": "string",
+          "default": "target/stm32f4x.cfg",
+          "description": "OpenOCD target config file"
+        },
+        "mcuBuild.flash.binaryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Firmware binary path relative to build directory (e.g. 'firmware.elf'). Auto-detected if empty."
+        },
+        "mcuBuild.flash.customCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Custom flash command (used when flash.tool is 'custom')"
+        },
+        "mcuBuild.serial.port": {
+          "type": "string",
+          "default": "",
+          "description": "Serial port for serial monitor (e.g. COM3 or /dev/ttyUSB0)"
+        },
+        "mcuBuild.serial.baudRate": {
+          "type": "number",
+          "default": 115200,
+          "description": "Serial baud rate"
+        }
+      }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "mcuBuildView",
+          "name": "史丹利測試"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "mcuBuild.build",
+          "when": "view == mcuBuildView",
+          "group": "navigation"
+        },
+        {
+          "command": "mcuBuild.flash",
+          "when": "view == mcuBuildView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mcuBuild.build",
+          "when": "view == mcuBuildView && viewItem == build",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.clean",
+          "when": "view == mcuBuildView && viewItem == clean",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.rebuild",
+          "when": "view == mcuBuildView && viewItem == rebuild",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.revealOutputFile",
+          "when": "view == mcuBuildView && viewItem == outputFile",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.selectConfigFile",
+          "when": "view == mcuBuildView && (viewItem == configFile || viewItem == configFileSet)",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.clearConfigFile",
+          "when": "view == mcuBuildView && viewItem == configFileSet",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.selectBuildType",
+          "when": "view == mcuBuildView && viewItem == buildType",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.flash",
+          "when": "view == mcuBuildView && viewItem == flash",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.openSerialMonitor",
+          "when": "view == mcuBuildView && viewItem == openSerial",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.selectSerialPort",
+          "when": "view == mcuBuildView && viewItem == selectPort",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.installArmToolchain",
+          "when": "view == mcuBuildView && viewItem == armToolchain",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.installCmake",
+          "when": "view == mcuBuildView && viewItem == cmakeToolchain",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.installNinja",
+          "when": "view == mcuBuildView && viewItem == ninjaToolchain",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.removeArmToolchain",
+          "when": "view == mcuBuildView && viewItem == armToolchainOk",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.removeCmake",
+          "when": "view == mcuBuildView && viewItem == cmakeToolchainOk",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.removeNinja",
+          "when": "view == mcuBuildView && viewItem == ninjaToolchainOk",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.refreshToolchain",
+          "when": "view == mcuBuildView && (viewItem == armToolchainOk || viewItem == cmakeToolchainOk || viewItem == ninjaToolchainOk)",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.refreshToolchain",
+          "when": "view == mcuBuildView && viewItem == refreshToolchain",
+          "group": "inline"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "mcuBuild.build",
+        "key": "f7",
+        "when": "!inDebugMode"
+      },
+      {
+        "command": "mcuBuild.flash",
+        "key": "ctrl+f7",
+        "when": "!inDebugMode"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build -- --production",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "compile": "tsc -p ./ --noEmit",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "serialport": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/vscode": "^1.110.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.27.4",
+    "eslint": "^9.39.3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
+  }
+}
