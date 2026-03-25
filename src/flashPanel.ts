@@ -12,7 +12,15 @@ export class FlashPanel {
     /** Set by extension when sourceFolder is selected */
     sourceFolder: string | undefined;
 
-    constructor(private readonly context: vscode.ExtensionContext) {}
+    /** Set active BIN file from outside (e.g. Output Files tree) */
+    setBinFile(filePath: string): void {
+        this.postToWebview({ type: 'binSelected', path: filePath });
+    }
+
+    constructor(
+        private readonly context: vscode.ExtensionContext,
+        private readonly output: vscode.OutputChannel
+    ) {}
 
     open(): void {
         if (this.panel) {
@@ -169,26 +177,17 @@ export class FlashPanel {
         this.log(`> ${ispTool} ${args.join(' ')}`, 'cmd');
         this.postToWebview({ type: 'flashStart' });
 
-        this.flashProc = cp.spawn(ispTool, args, { cwd: root, shell: false });
-
-        const parseProgress = (text: string) => {
-            // Match patterns like "50%", "50 %", "Progress: 50%", "(50%)"
-            const m = text.match(/(\d{1,3})\s*%/);
-            if (m) {
-                const pct = Math.min(100, Math.max(0, parseInt(m[1], 10)));
-                this.postToWebview({ type: 'progress', value: pct });
-            }
-        };
+        this.flashProc = cp.spawn(ispTool, args, { cwd: root, shell: true });
 
         this.flashProc.stdout?.on('data', (d: Buffer) => {
             const t = d.toString();
             this.log(t, null);
-            parseProgress(t);
+            this.output.append(t);
         });
         this.flashProc.stderr?.on('data', (d: Buffer) => {
             const t = d.toString();
             this.log(t, null);
-            parseProgress(t);
+            this.output.append(t);
         });
 
         this.flashProc.on('close', (code) => {
@@ -257,26 +256,6 @@ export class FlashPanel {
     background: var(--vscode-statusBarItem-errorBackground, #c72e0f);
   }
   .divider { border: none; border-top: 1px solid var(--vscode-panel-border, #333); margin: 4px 0; }
-  /* Progress bar */
-  #progressWrap {
-    position: relative;
-    height: 20px; background: var(--vscode-input-background);
-    border-radius: 4px; overflow: hidden;
-  }
-  #progressBar {
-    height: 100%; width: 0%;
-    background: #16825d;
-    transition: width 0.25s ease, background-color 0.3s;
-  }
-  #progressBar.done   { background: #2ea043; }
-  #progressBar.failed { background: #c72e0f; }
-  #progressLabel {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 600;
-    color: #fff; text-shadow: 0 0 4px rgba(0,0,0,0.6);
-    pointer-events: none;
-  }
   #statusText { font-size: 12px; color: var(--vscode-descriptionForeground); }
   /* Log */
   #logToggle {
@@ -322,11 +301,6 @@ export class FlashPanel {
   <span id="statusText">Ready</span>
 </div>
 
-<div id="progressWrap">
-  <div id="progressBar"></div>
-  <div id="progressLabel">0%</div>
-</div>
-
 <div id="logToggle">▶ Output</div>
 <div id="log"></div>
 
@@ -337,35 +311,7 @@ const binPath  = document.getElementById('binPath');
 const flashBtn = document.getElementById('flashBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const statusText = document.getElementById('statusText');
-const progressBar   = document.getElementById('progressBar');
-const progressLabel = document.getElementById('progressLabel');
 const log = document.getElementById('log');
-
-let currentPct = 0;
-let progressTimer = null;
-const FLASH_DURATION_MS = 6000;
-const TIMER_INTERVAL_MS = 60; // update every 60ms → 100 steps in 6s
-
-function setProgress(pct) {
-  if (pct < currentPct) { return; }
-  currentPct = pct;
-  progressBar.style.width = pct + '%';
-  progressLabel.textContent = pct + '%';
-}
-
-function startProgressTimer() {
-  stopProgressTimer();
-  currentPct = 0;
-  const totalSteps = FLASH_DURATION_MS / TIMER_INTERVAL_MS; // 100 steps
-  progressTimer = setInterval(() => {
-    const next = Math.min(99, currentPct + (99 / totalSteps));
-    setProgress(Math.floor(next));
-  }, TIMER_INTERVAL_MS);
-}
-
-function stopProgressTimer() {
-  if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
-}
 
 // Init
 vscode.postMessage({ type: 'listPorts' });
@@ -382,8 +328,6 @@ flashBtn.addEventListener('click', () => {
   const port = portSel.value;
   const binFile = binPath.value;
   log.innerHTML = '';
-  progressBar.className = '';
-  setProgress(0);
   statusText.textContent = 'Ready';
   vscode.postMessage({ type: 'flash', port, binFile });
 });
@@ -414,20 +358,13 @@ window.addEventListener('message', ({ data: msg }) => {
       flashBtn.disabled = true;
       cancelBtn.disabled = false;
       statusText.textContent = 'Flashing…';
-      progressBar.className = '';
-      startProgressTimer();
-      break;
-    case 'progress':
-      stopProgressTimer();
-      setProgress(msg.value);
+      log.innerHTML = '';
+      log.classList.add('visible');
+      document.getElementById('logToggle').textContent = '▼ Output';
       break;
     case 'flashDone':
-      stopProgressTimer();
       flashBtn.disabled = false;
       cancelBtn.disabled = true;
-      progressBar.className = msg.success ? 'done' : 'failed';
-      currentPct = 0; // reset guard so 100 can be set
-      setProgress(msg.success ? 100 : currentPct);
       statusText.textContent = msg.success ? 'Done ✓' : 'Failed ✗';
       break;
     case 'log': {

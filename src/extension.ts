@@ -17,7 +17,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const serial = new SerialMonitor(config, context);
     const statusBar = new StatusBarManager(config);
 
-    const flashPanel = new FlashPanel(context);
+    const flashPanel = new FlashPanel(context, output);
     const toolchainMgr = new ToolchainManager();
     const treeProvider = new McuBuildTreeProvider(config, toolchainMgr);
 
@@ -61,6 +61,10 @@ export function activate(context: vscode.ExtensionContext): void {
         ['mcuBuild.openSerialMonitor', () => serial.open()],
         ['mcuBuild.openFile',          (uri: unknown) => vscode.window.showTextDocument(uri as vscode.Uri)],
         ['mcuBuild.revealOutputFile',  (uri: unknown) => vscode.commands.executeCommand('revealFileInOS', uri as vscode.Uri)],
+        ['mcuBuild.useAsFlashBin', (uri: unknown) => {
+            flashPanel.setBinFile((uri as vscode.Uri).fsPath);
+            flashPanel.open();
+        }],
         ['mcuBuild.selectSourceFolder', async () => {
             const uris = await vscode.window.showOpenDialog({
                 canSelectFiles: false,

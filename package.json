@@ -83,6 +83,11 @@
         "icon": "$(folder-opened)"
       },
       {
+        "command": "mcuBuild.useAsFlashBin",
+        "title": "MCU: Use as Flash BIN",
+        "icon": "$(zap)"
+      },
+      {
         "command": "mcuBuild.installArmToolchain",
         "title": "MCU: Install ARM Cortex-M Toolchain",
         "icon": "$(cloud-download)"
@@ -259,6 +264,11 @@
         },
         {
           "command": "mcuBuild.revealOutputFile",
+          "when": "view == mcuBuildView && viewItem == outputFile",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.useAsFlashBin",
           "when": "view == mcuBuildView && viewItem == outputFile",
           "group": "inline"
         },
