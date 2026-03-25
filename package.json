@@ -2,7 +2,7 @@
   "name": "stbuild",
   "displayName": "史丹利測試",
   "description": "史丹利測試, flash, and serial monitor for CMake-based embedded projects",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "engines": {
     "vscode": "^1.110.0"
   },
@@ -33,6 +33,11 @@
       {
         "command": "mcuBuild.flash",
         "title": "MCU: Flash Firmware",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "mcuBuild.openFlashPanel",
+        "title": "MCU: Open Flash Panel (UART)",
         "icon": "$(zap)"
       },
       {
@@ -192,6 +197,11 @@
           "type": "string",
           "default": "",
           "description": "Firmware binary path relative to build directory (e.g. 'firmware.elf'). Auto-detected if empty."
+        },
+        "mcuBuild.flash.ispToolPath": {
+          "type": "string",
+          "default": "toolchain/isp_tool/isp_download_tool.exe",
+          "description": "Path to isp_download_tool.exe. Relative paths are resolved from the workspace root (SDK root)."
         },
         "mcuBuild.flash.customCommand": {
           "type": "string",

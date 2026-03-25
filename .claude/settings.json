@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"c:\\\\Users\\\\Stanley\\\\Rafael-IoT-SDK-Internal\\\\toolchain\\\\isp_tool\\\\isp_download_tool.exe\" --help)"
+    ]
+  }
+}

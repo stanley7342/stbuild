@@ -125,6 +125,7 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
             case 'Flash':
                 return [
                     new McuBuildItem('Flash Firmware', vscode.TreeItemCollapsibleState.None, 'mcuBuild.flash', 'zap', undefined, 'flash'),
+                    new McuBuildItem('Open Flash Panel (UART)', vscode.TreeItemCollapsibleState.None, 'mcuBuild.openFlashPanel', 'arrow-circle-down', undefined, 'openFlashPanel'),
                 ];
             case 'Serial Monitor':
                 return [

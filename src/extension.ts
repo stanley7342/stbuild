@@ -7,6 +7,7 @@ import { StatusBarManager } from './statusBar';
 import { McuBuildTreeProvider } from './mcuBuildTreeProvider';
 import { ToolchainManager } from './toolchainManager';
 import { openConfigFileEditor } from './configFileEditor';
+import { FlashPanel } from './flashPanel';
 
 export function activate(context: vscode.ExtensionContext): void {
     const output = vscode.window.createOutputChannel('史丹利測試');
@@ -16,6 +17,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const serial = new SerialMonitor(config, context);
     const statusBar = new StatusBarManager(config);
 
+    const flashPanel = new FlashPanel(context);
     const toolchainMgr = new ToolchainManager();
     const treeProvider = new McuBuildTreeProvider(config, toolchainMgr);
 
@@ -27,7 +29,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const savedSourceFolder = context.workspaceState.get<string>('mcuBuild.sourceFolder');
     if (savedSourceFolder) { treeProvider.setSourceFolder(savedSourceFolder); }
     // CMake source dir follows sourceFolder
-    if (savedSourceFolder) { buildMgr.cmakeSourceDir = savedSourceFolder; treeProvider.setCmakeSource(savedSourceFolder); }
+    if (savedSourceFolder) { buildMgr.cmakeSourceDir = savedSourceFolder; treeProvider.setCmakeSource(savedSourceFolder); flashPanel.sourceFolder = savedSourceFolder; }
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('mcuBuildView', treeProvider)
     );
@@ -55,6 +57,7 @@ export function activate(context: vscode.ExtensionContext): void {
         ['mcuBuild.rebuild',           () => buildMgr.rebuild()],
         ['mcuBuild.cancelBuild',       () => buildMgr.cancel()],
         ['mcuBuild.flash',             () => flashMgr.flash()],
+        ['mcuBuild.openFlashPanel',    () => flashPanel.open()],
         ['mcuBuild.openSerialMonitor', () => serial.open()],
         ['mcuBuild.openFile',          (uri: unknown) => vscode.window.showTextDocument(uri as vscode.Uri)],
         ['mcuBuild.revealOutputFile',  (uri: unknown) => vscode.commands.executeCommand('revealFileInOS', uri as vscode.Uri)],
@@ -70,6 +73,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 treeProvider.setSourceFolder(folder);
                 buildMgr.cmakeSourceDir = folder;
                 treeProvider.setCmakeSource(folder);
+                flashPanel.sourceFolder = folder;
                 context.workspaceState.update('mcuBuild.sourceFolder', folder);
             }
         }],
@@ -118,7 +122,7 @@ export function activate(context: vscode.ExtensionContext): void {
         context.subscriptions.push(vscode.commands.registerCommand(id, handler));
     }
 
-    context.subscriptions.push(output, buildMgr, statusBar, { dispose: () => serial.dispose() });
+    context.subscriptions.push(output, buildMgr, statusBar, { dispose: () => serial.dispose() }, { dispose: () => flashPanel.dispose() });
 }
 
 export function deactivate(): void {}
