@@ -60,7 +60,6 @@ export class FlashPanel {
             .map(f => path.join(buildDir, f));
 
         if (bins.length > 0) {
-            // Prefer the first .bin found (usually only one at top level)
             this.postToWebview({ type: 'binSelected', path: bins[0] });
         }
     }
@@ -157,7 +156,7 @@ export class FlashPanel {
 
         const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
         const cfg = vscode.workspace.getConfiguration('mcuBuild');
-        const ispRelPath = cfg.get<string>('flash.ispToolPath', 'toolchain/isp_tool/isp_download_tool.exe').trim();
+        const ispRelPath = cfg.get<string>('flash.ispToolPath', 'C:\\Users\\Stanley\\rex_hand_over\\isp_download_cmd_tool\\isp_dw_cmd.exe').trim().replace(/^["']|["']$/g, '');
         const ispTool = path.isAbsolute(ispRelPath) ? ispRelPath : path.join(root, ispRelPath);
 
         if (!fs.existsSync(ispTool)) {
@@ -167,7 +166,7 @@ export class FlashPanel {
         }
 
         const args = ['-p', port, '-a', binFile];
-        this.log(`> "${ispTool}" ${args.join(' ')}`, 'cmd');
+        this.log(`> ${ispTool} ${args.join(' ')}`, 'cmd');
         this.postToWebview({ type: 'flashStart' });
 
         this.flashProc = cp.spawn(ispTool, args, { cwd: root, shell: false });
@@ -417,6 +416,10 @@ window.addEventListener('message', ({ data: msg }) => {
       statusText.textContent = 'Flashing…';
       progressBar.className = '';
       startProgressTimer();
+      break;
+    case 'progress':
+      stopProgressTimer();
+      setProgress(msg.value);
       break;
     case 'flashDone':
       stopProgressTimer();

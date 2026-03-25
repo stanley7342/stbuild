@@ -200,8 +200,8 @@
         },
         "mcuBuild.flash.ispToolPath": {
           "type": "string",
-          "default": "toolchain/isp_tool/isp_download_tool.exe",
-          "description": "Path to isp_download_tool.exe. Relative paths are resolved from the workspace root (SDK root)."
+          "default": "C:\\Users\\Stanley\\rex_hand_over\\isp_download_cmd_tool\\isp_dw_cmd.exe",
+          "description": "Path to isp_dw_cmd.exe (or isp_download_tool.exe). Relative paths are resolved from the workspace root. Absolute paths are used as-is."
         },
         "mcuBuild.flash.customCommand": {
           "type": "string",
