@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>史丹利測試 — 簡報</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ── Slide container ── */
+  #deck { width: 100vw; height: 100vh; position: relative; }
+
+  .slide {
+    position: absolute; inset: 0;
+    display: none;
+    flex-direction: column;
+    padding: 56px 72px;
+    opacity: 0;
+    transition: opacity .35s ease;
+  }
+  .slide.active { display: flex; opacity: 1; }
+
+  /* ── Color themes per slide ── */
+  .slide { background: #0d1117; }
+  .slide.title  { background: linear-gradient(135deg, #0d1117 0%, #161b22 60%, #1a2332 100%); }
+  .slide.green  { --accent: #2ea043; --accent-light: #56d364; }
+  .slide.blue   { --accent: #388bfd; --accent-light: #79c0ff; }
+  .slide.purple { --accent: #8957e5; --accent-light: #d2a8ff; }
+  .slide.orange { --accent: #d29922; --accent-light: #e3b341; }
+  .slide.red    { --accent: #da3633; --accent-light: #ff7b72; }
+  .slide.teal   { --accent: #1f6feb; --accent-light: #58a6ff; }
+
+  .slide:not(.title) { --accent: #388bfd; --accent-light: #79c0ff; }
+
+  /* ── Title slide ── */
+  .slide.title { justify-content: center; align-items: flex-start; gap: 20px; }
+  .slide.title .chip {
+    font-size: 72px; margin-bottom: 8px;
+  }
+  .slide.title h1 {
+    font-size: 52px; font-weight: 700;
+    background: linear-gradient(90deg, #56d364, #388bfd, #d2a8ff);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    line-height: 1.15;
+  }
+  .slide.title .subtitle {
+    font-size: 22px; color: #8b949e; margin-top: 8px;
+  }
+  .slide.title .tag {
+    display: inline-block; margin-top: 32px;
+    padding: 6px 16px; border-radius: 20px;
+    background: #161b22; border: 1px solid #30363d;
+    font-size: 14px; color: #8b949e;
+  }
+  .slide.title .corner-art {
+    position: absolute; right: 72px; bottom: 64px;
+    font-size: 160px; opacity: .06; user-select: none;
+  }
+
+  /* ── Regular slide header ── */
+  .slide-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 36px; padding-bottom: 16px;
+    border-bottom: 2px solid var(--accent, #388bfd);
+  }
+  .slide-header .icon { font-size: 32px; }
+  .slide-header h2 { font-size: 32px; font-weight: 700; color: #e6edf3; }
+  .slide-number {
+    margin-left: auto; font-size: 13px; color: #484f58;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Content helpers ── */
+  .cols { display: grid; gap: 24px; flex: 1; }
+  .cols.c2 { grid-template-columns: 1fr 1fr; }
+  .cols.c3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  .card {
+    background: #161b22; border: 1px solid #30363d;
+    border-radius: 10px; padding: 22px 24px;
+  }
+  .card h3 {
+    font-size: 16px; font-weight: 600;
+    color: var(--accent-light, #79c0ff);
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .card ul { list-style: none; }
+  .card ul li {
+    font-size: 14px; color: #c9d1d9; padding: 4px 0;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .card ul li::before { content: "›"; color: var(--accent, #388bfd); flex-shrink: 0; }
+
+  .pill {
+    display: inline-block; padding: 3px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+    background: color-mix(in srgb, var(--accent,#388bfd) 18%, transparent);
+    color: var(--accent-light, #79c0ff);
+    border: 1px solid color-mix(in srgb, var(--accent,#388bfd) 35%, transparent);
+    margin: 2px 3px;
+  }
+
+  .flow {
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap; margin: 12px 0;
+  }
+  .flow .step {
+    background: #161b22; border: 1px solid #30363d;
+    border-radius: 8px; padding: 10px 18px;
+    font-size: 14px; color: #c9d1d9;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .flow .step .num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent, #388bfd);
+    color: #fff; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .flow .arrow { color: #484f58; font-size: 18px; }
+
+  table {
+    width: 100%; border-collapse: collapse; font-size: 14px;
+  }
+  th {
+    text-align: left; padding: 8px 12px;
+    background: #161b22; color: var(--accent-light, #79c0ff);
+    border-bottom: 1px solid #30363d; font-weight: 600;
+  }
+  td {
+    padding: 8px 12px; border-bottom: 1px solid #21262d;
+    color: #c9d1d9; vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  code {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    background: #161b22; border: 1px solid #30363d;
+    border-radius: 4px; padding: 1px 6px; font-size: 12px;
+    color: #e3b341;
+  }
+
+  /* ── Nav bar ── */
+  #nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: 48px; background: #161b22;
+    border-top: 1px solid #30363d;
+    display: flex; align-items: center; justify-content: center; gap: 16px;
+    z-index: 100;
+  }
+  #nav button {
+    background: none; border: 1px solid #30363d; border-radius: 6px;
+    color: #8b949e; padding: 6px 18px; cursor: pointer; font-size: 14px;
+    transition: all .2s;
+  }
+  #nav button:hover:not(:disabled) {
+    background: #21262d; color: #e6edf3; border-color: #388bfd;
+  }
+  #nav button:disabled { opacity: .3; cursor: default; }
+  #nav .progress {
+    display: flex; gap: 6px; align-items: center;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #30363d; cursor: pointer; transition: background .2s;
+  }
+  .dot.on { background: #388bfd; }
+
+  .slide { padding-bottom: 60px; }
+</style>
+</head>
+<body>
+
+<div id="deck">
+
+<!-- ───────────────────── 1. TITLE ───────────────────── -->
+<div class="slide title active">
+  <div class="chip">🔬</div>
+  <h1>史丹利測試</h1>
+  <div class="subtitle">CMake 嵌入式 MCU 開發輔助工具</div>
+  <div class="subtitle" style="font-size:16px;color:#484f58;margin-top:4px">
+    VSCode Extension for Rafael IoT SDK / RT584L
+  </div>
+  <div>
+    <span class="tag">🔨 Build</span>
+    <span class="tag">⚡ Flash</span>
+    <span class="tag">📡 Serial Monitor</span>
+    <span class="tag">🐞 CMSIS-DAP Debug</span>
+    <span class="tag">⚙️ Config Editor</span>
+  </div>
+  <div class="corner-art">⚙️</div>
+</div>
+
+<!-- ───────────────────── 2. OVERVIEW ───────────────────── -->
+<div class="slide blue">
+  <div class="slide-header">
+    <span class="icon">🗂️</span>
+    <h2>功能總覽</h2>
+    <span class="slide-number">2 / 11</span>
+  </div>
+  <div class="cols c3">
+    <div class="card">
+      <h3>🔨 建置</h3>
+      <ul>
+        <li>CMake + Ninja 建置</li>
+        <li>Build / Clean / Rebuild</li>
+        <li>Debug / Release 切換</li>
+        <li>F7 快速建置</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>⚡ 燒錄</h3>
+      <ul>
+        <li>UART ISP 燒錄 (進度條)</li>
+        <li>OpenOCD 燒錄 (CMSIS-DAP)</li>
+        <li>自動偵測最新 BIN/ELF</li>
+        <li>Ctrl+F7 快速燒錄</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>📡 序列監控</h3>
+      <ul>
+        <li>ANSI 顏色終端機</li>
+        <li>Timestamp 前綴</li>
+        <li>TeraTerm 鍵盤模式</li>
+        <li>可調 Line ending</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🐞 CMSIS-DAP 除錯</h3>
+      <ul>
+        <li>OpenOCD + cortex-debug</li>
+        <li>openocd_rt58x.sh 整合</li>
+        <li>自動偵測 ELF / OpenOCD</li>
+        <li>生成 launch.json</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>⚙️ Config Editor</h3>
+      <ul>
+        <li>Kconfig 格式編輯</li>
+        <li>顏色分類 Bool/String/Number</li>
+        <li>點擊切換布林值</li>
+        <li>跟隨 Source 目錄</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🛠️ 工具鏈管理</h3>
+      <ul>
+        <li>ARM GCC 安裝/移除</li>
+        <li>CMake / Ninja 管理</li>
+        <li>版本選擇安裝</li>
+        <li>Windows winget 支援</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── 3. ACTIVATION & TREE ───────────────────── -->
+<div class="slide green">
+  <div class="slide-header">
+    <span class="icon">🚀</span>
+    <h2>啟動與側邊欄結構</h2>
+    <span class="slide-number">3 / 11</span>
+  </div>
+  <div class="cols c2">
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <h3>📌 啟動條件</h3>
+        <ul>
+          <li>工作區根目錄含有 <code>CMakeLists.txt</code></li>
+          <li>自動還原上次選擇的 Source 目錄</li>
+          <li>自動偵測 <code>.config</code> / <code>defconfig</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>🔗 依賴擴充功能</h3>
+        <ul>
+          <li><code>marus25.cortex-debug</code> — CMSIS-DAP 除錯（自動安裝）</li>
+          <li>VSCode ≥ 1.110.0</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <h3>🌲 側邊欄樹狀結構</h3>
+      <ul>
+        <li>📁 <strong>Source Files</strong> — 瀏覽來源目錄</li>
+        <li>🔨 <strong>Build</strong> — CMake Source / Config / 建置動作</li>
+        <li>📦 <strong>Output Files</strong> — 最新 ELF &amp; BIN（附時間戳）</li>
+        <li>⚡ <strong>Flash</strong> — UART ISP 燒錄</li>
+        <li>📡 <strong>Serial Monitor</strong> — 序列終端機</li>
+        <li>🛠️ <strong>Toolchain</strong> — 工具鏈安裝狀態</li>
+        <li>🐞 <strong>CMSIS-DAP Debug</strong> — 片上除錯</li>
+        <li>⚙️ <strong>Config Editor</strong> — Kconfig 編輯（獨立面板）</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── 4. BUILD ───────────────────── -->
+<div class="slide orange">
+  <div class="slide-header">
+    <span class="icon">🔨</span>
+    <h2>Build — 建置流程</h2>
+    <span class="slide-number">4 / 11</span>
+  </div>
+  <div class="flow" style="margin-bottom:24px">
+    <div class="step"><span class="num">1</span> 選擇 Source Files 目錄</div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num">2</span> (選填) 選擇 Config File</div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num">3</span> 選擇 Build Type</div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num">4</span> 按 Build 或 F7</div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num">5</span> 查看 Output Files</div>
+  </div>
+  <div class="cols c2">
+    <div class="card">
+      <h3>⚙️ 建置動作</h3>
+      <ul>
+        <li><strong>Build</strong> — CMake configure + build，快捷鍵 <code>F7</code></li>
+        <li><strong>Clean</strong> — 清除 build 目錄輸出</li>
+        <li><strong>Rebuild</strong> — Clean 後重新 Build</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>📋 Build Type</h3>
+      <ul>
+        <li><code>Debug</code> — 含除錯符號（預設）</li>
+        <li><code>Release</code> — 最佳化，無除錯符號</li>
+        <li><code>RelWithDebInfo</code> — 最佳化 + 除錯符號</li>
+        <li><code>MinSizeRel</code> — 最小體積</li>
+      </ul>
+    </div>
+    <div class="card" style="grid-column:1/-1">
+      <h3>📦 Output Files — 自動偵測最新輸出</h3>
+      <ul>
+        <li>掃描 <code>build/</code> 目錄，依 <strong>修改時間</strong> 排序，顯示最新 <code>.elf</code> 與 <code>.bin</code></li>
+        <li>描述欄顯示最後修改時間，點擊可在檔案總管中定位</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── 5. FLASH ───────────────────── -->
+<div class="slide red">
+  <div class="slide-header">
+    <span class="icon">⚡</span>
+    <h2>Flash — 韌體燒錄</h2>
+    <span class="slide-number">5 / 11</span>
+  </div>
+  <div class="cols c2">
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <h3>📡 UART ISP 燒錄</h3>
+        <ul>
+          <li>使用 <code>isp_dw_cmd.exe</code> 燒錄工具</li>
+          <li>從下拉選單選擇 COM Port</li>
+          <li>自動偵測最新 <code>.bin</code> 檔</li>
+          <li>快捷鍵 <code>Ctrl+F7</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>🔌 OpenOCD 燒錄 (CMSIS-DAP)</h3>
+        <ul>
+          <li>自動抓 source 目錄下 <code>build/</code> 最新 <code>.elf</code></li>
+          <li>執行 <code>program {file} verify reset exit</code></li>
+          <li>燒錄完成後自動 Reset 執行新韌體</li>
+          <li>輸出顯示於 <code>OpenOCD Flash</code> 終端機</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📊 燒錄面板 UI</h3>
+      <ul>
+        <li>🔄 COM Port 下拉 + 重新整理按鈕</li>
+        <li>📁 BIN 檔路徑 + 瀏覽按鈕</li>
+        <li>▶️ Flash 按鈕（綠色）</li>
+        <li>⏹ Cancel 按鈕（紅色）</li>
+        <li>📊 進度條（即時顯示百分比）</li>
+      </ul>
+      <div style="margin-top:16px">
+        <div style="height:8px;border-radius:4px;overflow:hidden;background:#21262d;margin-bottom:8px">
+          <div style="width:60%;height:100%;background:#16825d;border-radius:4px;transition:width .3s"></div>
+        </div>
+        <div style="display:flex;gap:12px;font-size:12px">
+          <span style="color:#56d364">● 燒錄中</span>
+          <span style="color:#2ea043">● 完成 ✓</span>
+          <span style="color:#ff7b72">● 失敗 ✗</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── 6. SERIAL MONITOR ───────────────────── -->
+<div class="slide teal">
+  <div class="slide-header">
+    <span class="icon">📡</span>
+    <h2>Serial Monitor — 序列監控</h2>
+    <span class="slide-number">6 / 11</span>
+  </div>
+  <div class="cols c2">
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <h3>🔌 連線設定</h3>
+        <ul>
+          <li>COM Port 下拉選單 / 手動輸入</li>
+          <li>鮑率 1200 ~ 921600 bps（預設 115200）</li>
+          <li>Connect 按鈕切換連線狀態</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>⌨️ 鍵盤對應</h3>
+        <ul>
+          <li>一般字元 → 立即傳送</li>
+          <li><code>Enter</code> → 依 Line ending 設定</li>
+          <li><code>Ctrl+</code> 字母 → 控制字元 0x01–0x1A</li>
+          <li>方向鍵 → ANSI 跳脫序列</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <h3>🎛️ 顯示選項</h3>
+      <table>
+        <tr><th>選項</th><th>預設</th><th>說明</th></tr>
+        <tr><td>Auto-scroll</td><td>✓</td><td>自動捲動</td></tr>
+        <tr><td>Timestamp</td><td>✗</td><td>加 [HH:MM:SS]</td></tr>
+        <tr><td>Local echo</td><td>✗</td><td>顯示輸入字元</td></tr>
+        <tr><td>Line ending</td><td>None</td><td>CR+LF / LF / CR / None</td></tr>
+      </table>
+      <div style="margin-top:14px">
+        <h3 style="font-size:14px;color:var(--accent-light);margin-bottom:8px">🎨 ANSI 顏色支援</h3>
+        <div style="font-family:monospace;font-size:13px;background:#0d1117;border-radius:6px;padding:10px;line-height:1.8">
+          <span style="color:#ff7b72">[ERROR]</span>
+          <span style="color:#56d364"> [OK]</span>
+          <span style="color:#e3b341"> [WARN]</span>
+          <span style="color:#79c0ff"> [INFO]</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── 7. TOOLCHAIN ───────────────────── -->
+<div class="slide purple">
+  <div class="slide-header">
+    <span class="icon">🛠️</span>
+    <h2>Toolchain — 工具鏈管理</h2>
+    <span class="slide-number">7 / 11</span>
+  </div>
+  <div class="cols c2">
+    <div class="card">
+      <h3>📦 管理項目</h3>
+      <table>
+        <tr><th>工具</th><th>說明</th></tr>
+        <tr><td>arm-none-eabi-gcc</td><td>ARM 交叉編譯工具鏈</td></tr>
+        <tr><td>CMake</td><td>建置系統</td></tr>
+        <tr><td>Ninja</td><td>建置執行器</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>💻 安裝方式</h3>
+      <table>
+        <tr><th>平台</th><th>套件管理器</th></tr>
+        <tr><td>Windows</td><td>winget（版本選擇）/ Chocolatey</td></tr>
+        <tr><td>macOS</td><td>Homebrew</td></tr>
+        <tr><td>Linux</td><td>apt-get</td></tr>
+      </table>
+    </div>
+    <div class="card" style="grid-column:1/-1">
+      <h3>✅ 狀態顯示</h3>
+      <div style="display:flex;gap:24px;margin-top:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="color:#56d364;font-size:18px">✓</span>
+          <div>
+            <div style="font-size:14px;color:#c9d1d9">已安裝</div>
+            <div style="font-size:12px;color:#8b949e">顯示版本號</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:18px">☁️</span>
+          <div>
+            <div style="font-size:14px;color:#c9d1d9">未安裝</div>
+            <div style="font-size:12px;color:#8b949e">點擊選擇版本安裝</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:18px">🗑️</span>
+          <div>
+            <div style="font-size:14px;color:#c9d1d9">移除</div>
+            <div style="font-size:12px;color:#8b949e">右鍵點擊已安裝項目</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── 8. DEBUG ───────────────────── -->
+<div class="slide green">
+  <div class="slide-header">
+    <span class="icon">🐞</span>
+    <h2>CMSIS-DAP Debug — 片上除錯</h2>
+    <span class="slide-number">8 / 11</span>
+  </div>
+  <div class="flow" style="margin-bottom:20px">
+    <div class="step"><span class="num">1</span> 連接 CMSIS-DAP 偵錯器</div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num">2</span> Build 專案取得 ELF</div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num">3</span> 按 Start Debug</div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num">4</span> OpenOCD 啟動於終端機</div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num">5</span> GDB 連接 :50000</div>
+  </div>
+  <div class="cols c2">
+    <div class="card">
+      <h3>🔧 自動偵測</h3>
+      <ul>
+        <li>ELF — <code>build/</code> 內最新 <code>.elf</code>（依 mtime）</li>
+        <li>OpenOCD — <code>tools/Debugger/OpenOCD/bin/win/</code></li>
+        <li>Script — <code>tools/Debugger/OpenOCD/script/openocd_rt58x.sh</code></li>
+        <li>Target — 依 Device 設定自動選擇</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🗺️ SoC → Target 對應</h3>
+      <table>
+        <tr><th>Device</th><th>OpenOCD Target</th></tr>
+        <tr><td>rt581 / rt582 / rt583</td><td><code>target/rt58x.cfg</code></td></tr>
+        <tr><td>rt584l / rt584h<br>rt584ha4 / rf1301</td><td><code>target/rt584.cfg</code></td></tr>
+      </table>
+    </div>
+    <div class="card" style="grid-column:1/-1">
+      <h3>⚙️ Windows 啟動指令（等同 openocd_rt58x.sh）</h3>
+      <div style="font-family:monospace;font-size:12px;background:#0d1117;border-radius:6px;padding:12px;color:#e3b341;line-height:1.8;overflow-x:auto;white-space:nowrap">
+        & "…\OpenOCD\bin\win\openocd.exe" -s "…\script" -f interface/cmsis-dap.cfg -f "target/rt584.cfg" -c "gdb_port 50000; tcl_port 50001; telnet_port 50002"
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── 9. CONFIG EDITOR ───────────────────── -->
+<div class="slide purple">
+  <div class="slide-header">
+    <span class="icon">⚙️</span>
+    <h2>Config Editor — Kconfig 設定編輯</h2>
+    <span class="slide-number">9 / 11</span>
+  </div>
+  <div class="cols c2">
+    <div class="card">
+      <h3>📂 載入方式</h3>
+      <ul>
+        <li>選擇 Source Files 目錄時自動偵測 <code>.config</code> / <code>defconfig</code></li>
+        <li>點擊 Build 區的 Config File 可手動選擇</li>
+        <li>修改後按 Save 圖示儲存</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🎨 顏色分類</h3>
+      <ul>
+        <li><span style="color:#d2a8ff">■</span> 紫色 — 區段標題（不可編輯）</li>
+        <li><span style="color:#56d364">■</span> 綠色 ✓ — Bool = y（點擊切換）</li>
+        <li><span style="color:#ff7b72">■</span> 紅色 ✗ — Bool = n（點擊切換）</li>
+        <li><span style="color:#79c0ff">■</span> 藍色 — 字串值（點擊輸入）</li>
+        <li><span style="color:#e3b341">■</span> 黃色 — 數字值（點擊輸入）</li>
+      </ul>
+    </div>
+    <div class="card" style="grid-column:1/-1">
+      <h3>📄 支援格式（Kconfig 風格）</h3>
+      <div style="font-family:monospace;font-size:13px;background:#0d1117;border-radius:6px;padding:12px;line-height:1.9">
+        <span style="color:#8b949e"># General Configuration</span><br>
+        <span style="color:#79c0ff">CONFIG_SOC_SERIES</span>=<span style="color:#a5d6ff">"rt584"</span><br>
+        <span style="color:#79c0ff">CONFIG_CPU_CORTEX_M33</span>=<span style="color:#56d364">y</span><br>
+        <span style="color:#79c0ff">CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC</span>=<span style="color:#e3b341">32000000</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── 10. SETTINGS & KEYS ───────────────────── -->
+<div class="slide blue">
+  <div class="slide-header">
+    <span class="icon">🔑</span>
+    <h2>設定參數 &amp; 快捷鍵</h2>
+    <span class="slide-number">10 / 11</span>
+  </div>
+  <div class="cols c2">
+    <div class="card">
+      <h3>⌨️ 快捷鍵</h3>
+      <table>
+        <tr><th>按鍵</th><th>功能</th></tr>
+        <tr><td><code>F7</code></td><td>Build</td></tr>
+        <tr><td><code>Ctrl+F7</code></td><td>Flash (UART)</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>🐞 除錯相關設定</h3>
+      <table>
+        <tr><th>設定</th><th>預設值</th></tr>
+        <tr><td><code>debug.device</code></td><td>RT584L</td></tr>
+        <tr><td><code>debug.gdbPort</code></td><td>50000</td></tr>
+        <tr><td><code>debug.gdbPath</code></td><td>arm-none-eabi-gdb</td></tr>
+        <tr><td><code>debug.openocdPath</code></td><td>自動偵測</td></tr>
+        <tr><td><code>debug.interfaceCfg</code></td><td>interface/cmsis-dap.cfg</td></tr>
+      </table>
+    </div>
+    <div class="card" style="grid-column:1/-1">
+      <h3>📋 常用建置設定（<code>mcuBuild.cmake.*</code>）</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <span class="pill">buildDirectory</span>
+        <span class="pill">buildType</span>
+        <span class="pill">configFile</span>
+        <span class="pill">toolchainFile</span>
+        <span class="pill">generator</span>
+        <span class="pill">configureArgs</span>
+        <span class="pill">buildArgs</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── 11. SUMMARY ───────────────────── -->
+<div class="slide title" style="background:linear-gradient(135deg,#0d1117 0%,#111827 60%,#1a2340 100%)">
+  <div style="font-size:56px;margin-bottom:16px">✅</div>
+  <h1 style="font-size:42px">史丹利測試</h1>
+  <div class="subtitle">一站式嵌入式 MCU 開發環境</div>
+  <div style="margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:600px">
+    <div class="card"><h3>🔨 Build &amp; Clean</h3><ul><li>CMake + Ninja，F7 快建</li></ul></div>
+    <div class="card"><h3>⚡ Flash</h3><ul><li>UART ISP + OpenOCD 燒錄</li></ul></div>
+    <div class="card"><h3>📡 Serial Monitor</h3><ul><li>ANSI 終端，TeraTerm 模式</li></ul></div>
+    <div class="card"><h3>🐞 CMSIS-DAP Debug</h3><ul><li>openocd_rt58x + cortex-debug</li></ul></div>
+  </div>
+  <div class="corner-art">🔬</div>
+</div>
+
+</div><!-- #deck -->
+
+<!-- ── Navigation ── -->
+<div id="nav">
+  <button id="prev" onclick="go(-1)" disabled>◀ 上一頁</button>
+  <div class="progress" id="dots"></div>
+  <button id="next" onclick="go(1)">下一頁 ▶</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let cur = 0;
+
+  // Build dots
+  const dotsEl = document.getElementById('dots');
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' on' : '');
+    d.title = `第 ${i+1} 頁`;
+    d.onclick = () => show(i);
+    dotsEl.appendChild(d);
+  });
+
+  function show(n) {
+    slides[cur].classList.remove('active');
+    cur = Math.max(0, Math.min(n, slides.length - 1));
+    slides[cur].classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('on', i === cur));
+    document.getElementById('prev').disabled = cur === 0;
+    document.getElementById('next').disabled = cur === slides.length - 1;
+  }
+
+  function go(d) { show(cur + d); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') go(1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')  go(-1);
+  });
+</script>
+</body>
+</html>

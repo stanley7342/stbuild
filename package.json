@@ -6,6 +6,9 @@
   "engines": {
     "vscode": "^1.110.0"
   },
+  "extensionDependencies": [
+    "marus25.cortex-debug"
+  ],
   "categories": [
     "Other"
   ],
@@ -13,6 +16,7 @@
     "workspaceContains:CMakeLists.txt"
   ],
   "main": "./out/extension.js",
+  "browser": "./out/web/extension.js",
   "contributes": {
     "commands": [
       {
@@ -27,8 +31,8 @@
       },
       {
         "command": "mcuBuild.rebuild",
-        "title": "MCU: Rebuild (Clean + Build)",
-        "icon": "$(refresh)"
+        "title": "MCU: Compile",
+        "icon": "$(play)"
       },
       {
         "command": "mcuBuild.flash",
@@ -121,6 +125,90 @@
         "command": "mcuBuild.refreshToolchain",
         "title": "MCU: Refresh Toolchain Status",
         "icon": "$(sync)"
+      },
+      {
+        "command": "mcuBuild.configSave",
+        "title": "MCU: Save Config",
+        "icon": "$(save)"
+      },
+      {
+        "command": "mcuBuild.configToggleBool",
+        "title": "MCU: Toggle Config Bool"
+      },
+      {
+        "command": "mcuBuild.configEditValue",
+        "title": "MCU: Edit Config Value",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "mcuBuild.startDebug",
+        "title": "MCU: Start CMSIS-DAP Debug",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "mcuBuild.debug.selectElf",
+        "title": "MCU: Select ELF File",
+        "icon": "$(file-binary)"
+      },
+      {
+        "command": "mcuBuild.debug.selectInterface",
+        "title": "MCU: Select Debug Interface",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "mcuBuild.debug.selectTarget",
+        "title": "MCU: Select OpenOCD Target",
+        "icon": "$(settings)"
+      },
+      {
+        "command": "mcuBuild.debug.selectOpenOcd",
+        "title": "MCU: Select OpenOCD",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "mcuBuild.debug.selectGdb",
+        "title": "MCU: Select GDB Path",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "mcuBuild.debug.generateLaunch",
+        "title": "MCU: Generate launch.json",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "mcuBuild.debug.flashOpenOcd",
+        "title": "MCU: Flash Firmware (OpenOCD)",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "mcuBuild.sdk.fetchTags",
+        "title": "SDK: Fetch Available Versions",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "mcuBuild.sdk.install",
+        "title": "SDK: Install Version",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "mcuBuild.sdk.remove",
+        "title": "SDK: Remove Version",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mcuBuild.sdk.setInstallPath",
+        "title": "SDK: Set Install Path",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "mcuBuild.sdk.openFolder",
+        "title": "SDK: Open Installed Folder",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "mcuBuild.sdk.openAsWorkspace",
+        "title": "SDK: Open as Workspace",
+        "icon": "$(folder-opened)"
       }
     ],
     "configuration": {
@@ -222,14 +310,66 @@
           "type": "number",
           "default": 115200,
           "description": "Serial baud rate"
+        },
+        "mcuBuild.debug.elfFile": {
+          "type": "string",
+          "default": "",
+          "description": "Path to ELF file for CMSIS-DAP debugging"
+        },
+        "mcuBuild.debug.gdbPath": {
+          "type": "string",
+          "default": "arm-none-eabi-gdb",
+          "description": "Path to arm-none-eabi-gdb executable"
+        },
+        "mcuBuild.debug.openocdPath": {
+          "type": "string",
+          "default": "openocd",
+          "description": "Path to OpenOCD executable"
+        },
+        "mcuBuild.debug.interfaceCfg": {
+          "type": "string",
+          "default": "interface/cmsis-dap.cfg",
+          "description": "OpenOCD interface config file (e.g. interface/cmsis-dap.cfg)"
+        },
+        "mcuBuild.debug.targetCfg": {
+          "type": "string",
+          "default": "target/rt584.cfg",
+          "description": "OpenOCD target config file (e.g. target/rt584.cfg)"
+        },
+        "mcuBuild.debug.gdbPort": {
+          "type": "number",
+          "default": 50000,
+          "description": "GDB server port used by OpenOCD (openocd_rt58x.sh default: 50000)"
+        },
+        "mcuBuild.debug.device": {
+          "type": "string",
+          "default": "RT584L",
+          "description": "Target device name"
         }
       }
     },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mcuBuildContainer",
+          "title": "史丹利測試",
+          "icon": "resources/mcu.svg"
+        }
+      ]
+    },
     "views": {
-      "explorer": [
+      "mcuBuildContainer": [
         {
           "id": "mcuBuildView",
           "name": "史丹利測試"
+        },
+        {
+          "id": "mcuConfigTreeView",
+          "name": "Config Editor"
+        },
+        {
+          "id": "mcuSdkView",
+          "name": "SDK Manager"
         }
       ]
     },
@@ -244,22 +384,22 @@
           "command": "mcuBuild.flash",
           "when": "view == mcuBuildView",
           "group": "navigation"
+        },
+        {
+          "command": "mcuBuild.configSave",
+          "when": "view == mcuConfigTreeView",
+          "group": "navigation"
+        },
+        {
+          "command": "mcuBuild.sdk.fetchTags",
+          "when": "view == mcuSdkView",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
         {
-          "command": "mcuBuild.build",
-          "when": "view == mcuBuildView && viewItem == build",
-          "group": "inline"
-        },
-        {
-          "command": "mcuBuild.clean",
-          "when": "view == mcuBuildView && viewItem == clean",
-          "group": "inline"
-        },
-        {
           "command": "mcuBuild.rebuild",
-          "when": "view == mcuBuildView && viewItem == rebuild",
+          "when": "view == mcuBuildView && viewItem == build",
           "group": "inline"
         },
         {
@@ -341,12 +481,92 @@
           "command": "mcuBuild.refreshToolchain",
           "when": "view == mcuBuildView && viewItem == refreshToolchain",
           "group": "inline"
+        },
+        {
+          "command": "mcuBuild.configEditValue",
+          "when": "view == mcuConfigTreeView && (viewItem == configString || viewItem == configNumber)",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.startDebug",
+          "when": "view == mcuBuildView && viewItem == debugStart",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.debug.selectElf",
+          "when": "view == mcuBuildView && viewItem == debugElf",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.debug.selectInterface",
+          "when": "view == mcuBuildView && viewItem == debugInterface",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.debug.selectTarget",
+          "when": "view == mcuBuildView && viewItem == debugTarget",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.debug.selectOpenOcd",
+          "when": "view == mcuBuildView && viewItem == debugOpenOcd",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.debug.selectGdb",
+          "when": "view == mcuBuildView && viewItem == debugGdb",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.debug.generateLaunch",
+          "when": "view == mcuBuildView && viewItem == debugGenLaunch",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.debug.flashOpenOcd",
+          "when": "view == mcuBuildView && viewItem == debugFlash",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.sdk.fetchTags",
+          "when": "view == mcuSdkView && viewItem == sdkFetchTags",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.sdk.install",
+          "when": "view == mcuSdkView && viewItem == sdkTag",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.sdk.remove",
+          "when": "view == mcuSdkView && viewItem == sdkTagInstalled",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.sdk.remove",
+          "when": "view == mcuSdkView && viewItem == sdkInstalledItem",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.sdk.openFolder",
+          "when": "view == mcuSdkView && viewItem == sdkInstalledItem",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.sdk.setInstallPath",
+          "when": "view == mcuSdkView && viewItem == sdkInstallPath",
+          "group": "inline"
+        },
+        {
+          "command": "mcuBuild.sdk.openAsWorkspace",
+          "when": "view == mcuSdkView && viewItem == sdkFolder",
+          "group": "inline"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "mcuBuild.build",
+        "command": "mcuBuild.rebuild",
         "key": "f7",
         "when": "!inDebugMode"
       },

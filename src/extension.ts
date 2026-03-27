@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ConfigManager, BuildType } from './configManager';
 import { BuildManager } from './buildManager';
 import { FlashManager } from './flashManager';
@@ -6,8 +8,11 @@ import { SerialMonitor } from './serialMonitor';
 import { StatusBarManager } from './statusBar';
 import { McuBuildTreeProvider } from './mcuBuildTreeProvider';
 import { ToolchainManager } from './toolchainManager';
-import { openConfigFileEditor } from './configFileEditor';
+import { ConfigFileTreeProvider, ConfigTreeItem } from './configTreeProvider';
 import { FlashPanel } from './flashPanel';
+import { DebugManager } from './debugManager';
+import { SdkManager } from './sdkManager';
+import { SdkTreeItem, SdkTreeProvider } from './sdkTreeProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
     const output = vscode.window.createOutputChannel('史丹利測試');
@@ -19,20 +24,52 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const flashPanel = new FlashPanel(context, output);
     const toolchainMgr = new ToolchainManager();
-    const treeProvider = new McuBuildTreeProvider(config, toolchainMgr);
+    const debugMgr = new DebugManager(output);
+    const treeProvider = new McuBuildTreeProvider(config, toolchainMgr, debugMgr);
+    const configTreeProvider = new ConfigFileTreeProvider();
+    const sdkMgr = new SdkManager(output, context);
+    const sdkTreeProvider = new SdkTreeProvider(sdkMgr);
 
     // Refresh tree when toolchain status changes
     toolchainMgr.onDidChange(() => treeProvider.refresh(), null, context.subscriptions);
+    // Poll CMSIS-DAP probe connection every 3 s, refresh tree on change
+    debugMgr.startProbePolling(() => treeProvider.refresh());
+    context.subscriptions.push({ dispose: () => debugMgr.stopProbePolling() });
     // Check toolchain status on activation
     toolchainMgr.checkAll();
-    // Restore previously selected source folder
-    const savedSourceFolder = context.workspaceState.get<string>('mcuBuild.sourceFolder');
-    if (savedSourceFolder) { treeProvider.setSourceFolder(savedSourceFolder); }
-    // CMake source dir follows sourceFolder
-    if (savedSourceFolder) { buildMgr.cmakeSourceDir = savedSourceFolder; treeProvider.setCmakeSource(savedSourceFolder); flashPanel.sourceFolder = savedSourceFolder; }
+    // Restore previously selected source folder, fall back to workspace root
+    const savedSourceFolder =
+        context.workspaceState.get<string>('mcuBuild.sourceFolder') ??
+        config.getWorkspaceRoot();
+    if (savedSourceFolder) {
+        treeProvider.setSourceFolder(savedSourceFolder);
+        buildMgr.cmakeSourceDir = savedSourceFolder;
+        treeProvider.setCmakeSource(savedSourceFolder);
+        flashPanel.sourceFolder = savedSourceFolder;
+        debugMgr.sourceDir = savedSourceFolder;
+        // Auto-detect config file from source folder
+        const savedCandidates = fs.existsSync(savedSourceFolder)
+            ? fs.readdirSync(savedSourceFolder).filter(f => f.endsWith('.config') || f === 'defconfig')
+            : [];
+        if (savedCandidates.length > 0 && !config.configFile) {
+            const detected = path.join(savedSourceFolder, savedCandidates[0]);
+            config.configFile = detected;
+            configTreeProvider.load(detected);
+        } else if (config.configFile && fs.existsSync(config.configFile)) {
+            configTreeProvider.load(config.configFile);
+        }
+        treeProvider.refresh();
+    }
     context.subscriptions.push(
-        vscode.window.registerTreeDataProvider('mcuBuildView', treeProvider)
+        vscode.window.registerTreeDataProvider('mcuBuildView', treeProvider),
+        vscode.window.registerTreeDataProvider('mcuSdkView', sdkTreeProvider)
     );
+
+    const configTreeView = vscode.window.createTreeView('mcuConfigTreeView', {
+        treeDataProvider: configTreeProvider,
+        showCollapseAll: false,
+    });
+    context.subscriptions.push(configTreeView);
 
     // Keep status bar in sync with build state
     buildMgr.onStatusChanged(s => {
@@ -53,8 +90,22 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const cmds: [string, (...args: unknown[]) => unknown][] = [
         ['mcuBuild.build',             () => buildMgr.build()],
-        ['mcuBuild.clean',             () => buildMgr.clean()],
-        ['mcuBuild.rebuild',           () => buildMgr.rebuild()],
+        ['mcuBuild.clean',             async () => { await buildMgr.clean(); treeProvider.refresh(); }],
+        ['mcuBuild.rebuild',           async () => {
+            treeProvider.setCompiling(true);
+            treeProvider.refresh();
+            try {
+                await vscode.window.withProgress(
+                    { location: vscode.ProgressLocation.Notification, title: 'Compiling', cancellable: false },
+                    (_progress) => buildMgr.rebuild(
+                        (increment, message) => _progress.report({ increment, message })
+                    )
+                );
+            } finally {
+                treeProvider.setCompiling(false);
+                treeProvider.refresh();
+            }
+        }],
         ['mcuBuild.cancelBuild',       () => buildMgr.cancel()],
         ['mcuBuild.flash',             () => flashMgr.flash()],
         ['mcuBuild.openFlashPanel',    () => flashPanel.open()],
@@ -78,7 +129,19 @@ export function activate(context: vscode.ExtensionContext): void {
                 buildMgr.cmakeSourceDir = folder;
                 treeProvider.setCmakeSource(folder);
                 flashPanel.sourceFolder = folder;
+                debugMgr.sourceDir = folder;
                 context.workspaceState.update('mcuBuild.sourceFolder', folder);
+
+                // Auto-detect config file in the selected folder
+                const candidates = fs.existsSync(folder)
+                    ? fs.readdirSync(folder).filter(f => f.endsWith('.config') || f === 'defconfig')
+                    : [];
+                if (candidates.length > 0) {
+                    const detected = path.join(folder, candidates[0]);
+                    config.configFile = detected;
+                    configTreeProvider.load(detected);
+                }
+                treeProvider.refresh();
             }
         }],
         ['mcuBuild.selectSerialPort',    () => serial.selectPort()],
@@ -92,16 +155,77 @@ export function activate(context: vscode.ExtensionContext): void {
             });
             if (uris?.[0]) {
                 config.configFile = uris[0].fsPath;
+                configTreeProvider.load(uris[0].fsPath);
+                vscode.commands.executeCommand('mcuConfigTreeView.focus');
             }
         }],
         ['mcuBuild.openConfigFile', () => {
             if (config.configFile) {
-                openConfigFileEditor(context, config.configFile);
+                configTreeProvider.load(config.configFile);
+                vscode.commands.executeCommand('mcuConfigTreeView.focus');
             } else {
                 vscode.window.showWarningMessage('No config file selected. Please select a config file first.');
             }
         }],
+        ['mcuBuild.configSave', () => {
+            const ok = configTreeProvider.save();
+            if (ok) { vscode.window.showInformationMessage(`Saved ${configTreeProvider.fileName}`); }
+            else    { vscode.window.showErrorMessage('Failed to save config file.'); }
+        }],
+        ['mcuBuild.configToggleBool', (item: unknown) => configTreeProvider.toggleBool(item as ConfigTreeItem)],
+        ['mcuBuild.configEditValue',  (item: unknown) => configTreeProvider.editValue(item as ConfigTreeItem)],
         ['mcuBuild.clearConfigFile', () => { config.configFile = ''; }],
+        // CMSIS-DAP Debug
+        ['mcuBuild.startDebug',              () => debugMgr.startDebug()],
+        ['mcuBuild.debug.selectElf',         async () => { await debugMgr.selectElf();       treeProvider.refresh(); }],
+        ['mcuBuild.debug.selectInterface',   async () => { await debugMgr.selectInterface();  treeProvider.refresh(); }],
+        ['mcuBuild.debug.selectTarget',      async () => { await debugMgr.selectTarget();     treeProvider.refresh(); }],
+        ['mcuBuild.debug.selectOpenOcd',     async () => { await debugMgr.selectOpenOcd();    treeProvider.refresh(); }],
+        ['mcuBuild.debug.selectGdb',         async () => {
+            const val = await vscode.window.showInputBox({ prompt: 'GDB executable path', value: debugMgr.gdbPath });
+            if (val !== undefined) { debugMgr.gdbPath = val; treeProvider.refresh(); }
+        }],
+        ['mcuBuild.debug.generateLaunch',    () => debugMgr.generateLaunchJson()],
+        ['mcuBuild.debug.flashOpenOcd',      async () => {
+            treeProvider.setFlashing(true);
+            try {
+                await vscode.window.withProgress(
+                    { location: vscode.ProgressLocation.Notification, title: 'Downloading', cancellable: false },
+                    async (p) => {
+                        let lastOverall = 0;
+                        let sawErase = false;
+                        p.report({ increment: 0, message: '0%' });
+
+                        let resolveFlash!: () => void;
+                        const flashPhase = new Promise<void>(r => resolveFlash = r);
+
+                        const flashDone = debugMgr.flashWithOpenOcd((phase, pct) => {
+                            // Map erase → 0–50%, write → 50–100% (or 0–100% if no erase)
+                            let overall: number;
+                            let label: string;
+                            if (phase === 'erase') {
+                                sawErase = true;
+                                overall = Math.round(pct / 2);
+                                label = `Erasing ${pct}%`;
+                            } else {
+                                overall = sawErase ? 50 + Math.round(pct / 2) : pct;
+                                label = `Writing ${pct}%`;
+                            }
+                            if (overall > lastOverall) {
+                                p.report({ increment: overall - lastOverall, message: label });
+                                lastOverall = overall;
+                            }
+                            if (phase === 'flash' && pct >= 100) { resolveFlash(); }
+                        });
+
+                        await flashPhase;
+                        await flashDone;
+                    }
+                );
+            } finally {
+                treeProvider.setFlashing(false);
+            }
+        }],
         ['mcuBuild.installArmToolchain', () => toolchainMgr.installArmToolchain()],
         ['mcuBuild.installCmake',        () => toolchainMgr.installCmake()],
         ['mcuBuild.installNinja',        () => toolchainMgr.installNinja()],
@@ -109,6 +233,29 @@ export function activate(context: vscode.ExtensionContext): void {
         ['mcuBuild.removeCmake',         () => toolchainMgr.removeCmake()],
         ['mcuBuild.removeNinja',         () => toolchainMgr.removeNinja()],
         ['mcuBuild.refreshToolchain',    () => toolchainMgr.checkAll()],
+        // SDK Manager
+        ['mcuBuild.sdk.fetchTags',     () => sdkMgr.fetchTags()],
+        ['mcuBuild.sdk.install',       async (tag: unknown) => { await sdkMgr.installSdk(tag as string); }],
+        ['mcuBuild.sdk.remove',        async (item: unknown) => {
+            const tag = item instanceof SdkTreeItem ? item.sdkTag : undefined;
+            if (tag) { await sdkMgr.removeSdk(tag); }
+        }],
+        ['mcuBuild.sdk.setInstallPath', async () => {
+            const uris = await vscode.window.showOpenDialog({
+                canSelectFiles: false,
+                canSelectFolders: true,
+                canSelectMany: false,
+                openLabel: 'Select SDK Install Path',
+                defaultUri: vscode.Uri.file(sdkMgr.installPath),
+            });
+            if (uris?.[0]) { sdkMgr.setInstallPath(uris[0].fsPath); }
+        }],
+        ['mcuBuild.sdk.openFolder',    (folderPath: unknown) => {
+            vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(folderPath as string));
+        }],
+        ['mcuBuild.sdk.openAsWorkspace', (folderPath: unknown) => {
+            vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPath as string));
+        }],
         ['mcuBuild.selectBuildType',   async () => {
             const types: BuildType[] = ['Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel'];
             const pick = await vscode.window.showQuickPick(

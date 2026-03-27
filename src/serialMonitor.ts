@@ -246,12 +246,12 @@ export class SerialMonitor implements vscode.Disposable {
   <button id="clearBtn">Clear</button>
   <label><input type="checkbox" id="autoScrollChk" checked> Auto-scroll</label>
   <label><input type="checkbox" id="timestampChk"> Timestamp</label>
-  <label><input type="checkbox" id="localEchoChk" checked> Local echo</label>
+  <label><input type="checkbox" id="localEchoChk"> Local echo</label>
   <select id="eolSel" title="Line ending">
     <option value="crlf">CR+LF</option>
     <option value="lf">LF</option>
     <option value="cr">CR</option>
-    <option value="none">None</option>
+    <option value="none" selected>None</option>
   </select>
   <span id="badge" class="badge">Disconnected</span>
 </div>
@@ -405,18 +405,71 @@ function toggleConnect() {
   }
 }
 
+// ── ANSI colour support ────────────────────────────────────────────────────
+const ANSI_COLORS = {
+  30:'#4e4e4e', 31:'#cd3131', 32:'#0dbc79', 33:'#e5e510',
+  34:'#2472c8', 35:'#bc3fbc', 36:'#11a8cd', 37:'#e5e5e5',
+  90:'#666666', 91:'#f14c4c', 92:'#23d18b', 93:'#f5f543',
+  94:'#3b8eea', 95:'#d670d6', 96:'#29b8db', 97:'#ffffff',
+};
+let ansiColor = null;   // current fg colour from escape codes
+let ansiBold  = false;
+
+function applyAnsiCode(code) {
+  if (code === 0 || code === '') { ansiColor = null; ansiBold = false; return; }
+  if (code === 1) { ansiBold = true; return; }
+  if (code === 22) { ansiBold = false; return; }
+  if (ANSI_COLORS[code]) { ansiColor = ANSI_COLORS[code]; }
+}
+
+/** Split text into [{text, color}] segments, consuming ANSI SGR sequences */
+function parseAnsi(text) {
+  const segments = [];
+  // Regex matches ESC [ ... m  sequences
+  const re = /\\x1b\\[([0-9;]*)m/g;
+  let last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      segments.push({ text: text.slice(last, m.index), color: ansiColor, bold: ansiBold });
+    }
+    for (const part of m[1].split(';')) {
+      applyAnsiCode(part === '' ? 0 : parseInt(part, 10));
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) {
+    segments.push({ text: text.slice(last), color: ansiColor, bold: ansiBold });
+  }
+  return segments;
+}
+
 function appendData(text) {
-  if (!document.getElementById('timestampChk').checked) {
-    appendRaw(text, null);
+  const ts = document.getElementById('timestampChk').checked;
+  if (!ts) {
+    appendAnsi(text);
     return;
   }
   dataBuf += text;
   const lines = dataBuf.split('\\n');
   dataBuf = lines.pop();
   for (const line of lines) {
-    appendRaw('[' + new Date().toLocaleTimeString() + '] ' + line + '\\n', null);
+    appendRaw('[' + new Date().toLocaleTimeString() + '] ', '#888');
+    appendAnsi(line + '\\n');
   }
-  if (dataBuf.length > 0) { appendRaw(dataBuf, null); dataBuf = ''; }
+  if (dataBuf.length > 0) { appendAnsi(dataBuf); dataBuf = ''; }
+}
+
+function appendAnsi(text) {
+  for (const seg of parseAnsi(text)) {
+    const span = document.createElement('span');
+    span.textContent = seg.text;
+    if (seg.color) { span.style.color = seg.color; }
+    if (seg.bold)  { span.style.fontWeight = 'bold'; }
+    content.appendChild(span);
+  }
+  if (document.getElementById('autoScrollChk').checked) {
+    terminal.scrollTop = terminal.scrollHeight;
+  }
 }
 
 function appendLine(text, color) {

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigManager } from './configManager';
 import { ToolchainManager } from './toolchainManager';
+import { DebugManager } from './debugManager';
 
 export class McuBuildItem extends vscode.TreeItem {
     /** Set on directory items so getChildren knows which path to list */
@@ -35,19 +36,32 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
 
     private _sourceFolder: string | undefined;
     private _cmakeSource: string | undefined;
+    private _compiling = false;
+    private _flashing = false;
 
     // Stable references so targeted refresh won't collapse these nodes
     private readonly _sourceFolderItem = new McuBuildItem(
-        'Source Files', vscode.TreeItemCollapsibleState.Collapsed, undefined, 'folder-opened', 'not set'
+        'Source Files', vscode.TreeItemCollapsibleState.Collapsed, 'mcuBuild.selectSourceFolder', 'folder-opened', 'not set'
     );
 
     constructor(
         private readonly config: ConfigManager,
-        private readonly toolchain: ToolchainManager
+        private readonly toolchain: ToolchainManager,
+        private readonly debug?: DebugManager
     ) {}
 
     setCmakeSource(dir: string | undefined): void {
         this._cmakeSource = dir;
+        this._onDidChangeTreeData.fire(undefined);
+    }
+
+    setCompiling(value: boolean): void {
+        this._compiling = value;
+        this._onDidChangeTreeData.fire(undefined);
+    }
+
+    setFlashing(value: boolean): void {
+        this._flashing = value;
         this._onDidChangeTreeData.fire(undefined);
     }
 
@@ -73,12 +87,13 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
             // Update description on the stable item each render
             this._sourceFolderItem.description = this._sourceFolder ? path.basename(this._sourceFolder) : 'not set';
             return [
+                this._sourceFolderItem,
                 new McuBuildItem('Build', vscode.TreeItemCollapsibleState.Expanded, undefined, 'tools'),
                 new McuBuildItem('Output Files', vscode.TreeItemCollapsibleState.Expanded, undefined, 'package'),
                 new McuBuildItem('Flash', vscode.TreeItemCollapsibleState.Expanded, undefined, 'zap'),
                 new McuBuildItem('Serial Monitor', vscode.TreeItemCollapsibleState.Expanded, undefined, 'terminal'),
                 new McuBuildItem('Toolchain', vscode.TreeItemCollapsibleState.Collapsed, undefined, 'server-environment'),
-                this._sourceFolderItem,
+                new McuBuildItem('CMSIS-DAP Debug', vscode.TreeItemCollapsibleState.Collapsed, undefined, 'debug-alt'),
             ];
         }
 
@@ -87,10 +102,21 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
                 return [
                     new McuBuildItem('CMake Source', vscode.TreeItemCollapsibleState.None, 'mcuBuild.selectSourceFolder', 'root-folder', this._cmakeSource ? path.basename(this._cmakeSource) : 'workspace root', 'cmakeSource'),
                     new McuBuildItem('Config File', vscode.TreeItemCollapsibleState.None, this.config.configFile ? 'mcuBuild.openConfigFile' : 'mcuBuild.selectConfigFile', 'file-code', this.config.configFile ? path.basename(this.config.configFile) : 'not set', this.config.configFile ? 'configFileSet' : 'configFile'),
-                    new McuBuildItem('Build', vscode.TreeItemCollapsibleState.None, 'mcuBuild.build', 'play', undefined, 'build'),
-                    new McuBuildItem('Clean', vscode.TreeItemCollapsibleState.None, 'mcuBuild.clean', 'trash', undefined, 'clean'),
-                    new McuBuildItem('Rebuild', vscode.TreeItemCollapsibleState.None, 'mcuBuild.rebuild', 'refresh', undefined, 'rebuild'),
                     new McuBuildItem('Build Type', vscode.TreeItemCollapsibleState.None, 'mcuBuild.selectBuildType', 'symbol-enum', this.config.buildType, 'buildType'),
+                    (() => {
+                        const item = new McuBuildItem(
+                            this._compiling ? 'Compiling...' : 'Compile',
+                            vscode.TreeItemCollapsibleState.None,
+                            this._compiling ? undefined : 'mcuBuild.rebuild',
+                            undefined,
+                            undefined,
+                            'build'
+                        );
+                        item.iconPath = this._compiling
+                            ? new vscode.ThemeIcon('sync~spin')
+                            : new vscode.ThemeIcon('play');
+                        return item;
+                    })(),
                 ];
             case 'Toolchain':
                 return [
@@ -133,10 +159,41 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
                     new McuBuildItem('Select Port', vscode.TreeItemCollapsibleState.None, 'mcuBuild.selectSerialPort', 'plug', this.config.serialPort || 'not set', 'selectPort'),
                 ];
             case 'Source Files':
+                return this.listDir(this._sourceFolder);
+            case 'CMSIS-DAP Debug': {
+                const dbg = this.debug;
+                const probe = dbg?.probe;
+                const probeItem = probe?.connected
+                    ? new McuBuildItem('Connected', vscode.TreeItemCollapsibleState.None, undefined, undefined, probe.name ?? 'CMSIS-DAP', 'probeConnected')
+                    : new McuBuildItem('Not Connected', vscode.TreeItemCollapsibleState.None, undefined, undefined, undefined, 'probeDisconnected');
+                probeItem.iconPath = probe?.connected
+                    ? new vscode.ThemeIcon('debug-alt', new vscode.ThemeColor('testing.iconPassed'))
+                    : new vscode.ThemeIcon('debug-disconnect', new vscode.ThemeColor('testing.iconFailed'));
                 return [
-                    new McuBuildItem('Select Folder…', vscode.TreeItemCollapsibleState.None, 'mcuBuild.selectSourceFolder', 'folder', undefined, 'selectSourceFolder'),
-                    ...this.listDir(this._sourceFolder),
+                    probeItem,
+                    new McuBuildItem('Start Debug', vscode.TreeItemCollapsibleState.None, 'mcuBuild.startDebug', 'debug-start', undefined, 'debugStart'),
+                    (() => {
+                        const item = new McuBuildItem(
+                            this._flashing ? 'Flashing...' : 'Flash',
+                            vscode.TreeItemCollapsibleState.None,
+                            this._flashing ? undefined : 'mcuBuild.debug.flashOpenOcd',
+                            undefined,
+                            undefined,
+                            'debugFlash'
+                        );
+                        item.iconPath = this._flashing
+                            ? new vscode.ThemeIcon('sync~spin')
+                            : new vscode.ThemeIcon('zap');
+                        return item;
+                    })(),
+                    new McuBuildItem('ELF File', vscode.TreeItemCollapsibleState.None, 'mcuBuild.debug.selectElf', 'file-binary', dbg?.elfFile ? path.basename(dbg.elfFile) : 'not set', 'debugElf'),
+                    new McuBuildItem('Interface', vscode.TreeItemCollapsibleState.None, 'mcuBuild.debug.selectInterface', 'plug', dbg?.interfaceCfg || 'not set', 'debugInterface'),
+                    new McuBuildItem('Target Config', vscode.TreeItemCollapsibleState.None, 'mcuBuild.debug.selectTarget', 'settings', dbg?.targetCfg || 'not set', 'debugTarget'),
+                    new McuBuildItem('GDB', vscode.TreeItemCollapsibleState.None, 'mcuBuild.debug.selectGdb', 'terminal', dbg?.gdbPath || 'arm-none-eabi-gdb', 'debugGdb'),
+                    new McuBuildItem('OpenOCD', vscode.TreeItemCollapsibleState.None, 'mcuBuild.debug.selectOpenOcd', 'debug-disconnect', dbg ? path.basename(dbg.openocdPath) : 'auto-detect', 'debugOpenOcd'),
+                    new McuBuildItem('Generate launch.json', vscode.TreeItemCollapsibleState.None, 'mcuBuild.debug.generateLaunch', 'file-code', undefined, 'debugGenLaunch'),
                 ];
+            }
             default:
                 // Subdirectory node — dirPath set when item was created
                 if (element.dirPath) {
@@ -156,15 +213,25 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
 
         const items: McuBuildItem[] = [];
         try {
-            for (const entry of fs.readdirSync(buildDir, { withFileTypes: true })) {
-                if (entry.isFile() && path.extname(entry.name).toLowerCase() === '.bin') {
-                    const filePath = path.join(buildDir, entry.name);
+            const newestByExt = (ext: string) => {
+                const matched = fs.readdirSync(buildDir)
+                    .filter(f => path.extname(f).toLowerCase() === ext)
+                    .map(f => ({ f, mtime: fs.statSync(path.join(buildDir, f)).mtimeMs }))
+                    .sort((a, b) => b.mtime - a.mtime);
+                return matched.length > 0 ? matched[0].f : undefined;
+            };
+
+            for (const ext of ['.elf', '.bin']) {
+                const name = newestByExt(ext);
+                if (name) {
+                    const filePath = path.join(buildDir, name);
+                    const mtime = new Date(fs.statSync(filePath).mtime).toLocaleString();
                     items.push(new McuBuildItem(
-                        entry.name,
+                        name,
                         vscode.TreeItemCollapsibleState.None,
                         'mcuBuild.revealOutputFile',
-                        'file-symlink-file',
-                        undefined,
+                        ext === '.elf' ? 'file-binary' : 'file-symlink-file',
+                        mtime,
                         'outputFile',
                         [vscode.Uri.file(filePath)]
                     ));
@@ -174,7 +241,7 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
 
         return items.length > 0
             ? items
-            : [new McuBuildItem('No .bin found', vscode.TreeItemCollapsibleState.None, undefined, 'info', undefined, 'outputEmpty')];
+            : [new McuBuildItem('No output files', vscode.TreeItemCollapsibleState.None, undefined, 'info', undefined, 'outputEmpty')];
     }
 
     private listDir(dir: string | undefined): McuBuildItem[] {

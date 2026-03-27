@@ -143,7 +143,7 @@ export class FlashPanel {
                 await this.doFlash(msg.port ?? '', msg.binFile ?? '');
                 break;
             case 'cancel':
-                this.flashProc?.kill();
+                this.cancelFlash();
                 break;
         }
     }
@@ -179,15 +179,25 @@ export class FlashPanel {
 
         this.flashProc = cp.spawn(ispTool, args, { cwd: root, shell: true });
 
+        const parseProgress = (text: string) => {
+            const m = text.match(/(\d{1,3}(?:\.\d+)?)\s*%/);
+            if (m) {
+                const pct = Math.min(100, Math.max(0, Math.round(parseFloat(m[1]))));
+                this.postToWebview({ type: 'progress', value: pct });
+            }
+        };
+
         this.flashProc.stdout?.on('data', (d: Buffer) => {
             const t = d.toString();
             this.log(t, null);
             this.output.append(t);
+            parseProgress(t);
         });
         this.flashProc.stderr?.on('data', (d: Buffer) => {
             const t = d.toString();
             this.log(t, null);
             this.output.append(t);
+            parseProgress(t);
         });
 
         this.flashProc.on('close', (code) => {
@@ -203,6 +213,20 @@ export class FlashPanel {
             this.postToWebview({ type: 'flashDone', success: false });
             this.flashProc = undefined;
         });
+    }
+
+    private cancelFlash(): void {
+        if (!this.flashProc) { return; }
+        const pid = this.flashProc.pid;
+        if (pid && process.platform === 'win32') {
+            // Kill entire process tree on Windows (shell:true spawns cmd.exe as parent)
+            cp.spawn('taskkill', ['/F', '/T', '/PID', String(pid)], { shell: false });
+        } else {
+            this.flashProc.kill();
+        }
+        this.log('\n[Cancelled] Flash cancelled by user.', 'error');
+        this.postToWebview({ type: 'flashDone', success: false });
+        this.flashProc = undefined;
     }
 
     private log(text: string, style: 'error' | 'ok' | 'cmd' | null): void {
@@ -275,6 +299,17 @@ export class FlashPanel {
   .log-error { color: #f48771; }
   .log-ok    { color: #4ec9b0; }
   .log-cmd   { color: #dcdcaa; }
+  /* Progress bar */
+  #progressWrap {
+    position: relative; height: 20px;
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border, #555);
+    border-radius: 4px; overflow: hidden; display: none;
+  }
+  #progressWrap.visible { display: block; }
+  #progressBar { height: 100%; width: 0%; background: #16825d; transition: width 0.15s ease; }
+  #progressBar.done { background: #2ea043; }
+  #progressBar.failed { background: #c72e0f; }
 </style>
 </head>
 <body>
@@ -301,6 +336,8 @@ export class FlashPanel {
   <span id="statusText">Ready</span>
 </div>
 
+<div id="progressWrap"><div id="progressBar"></div></div>
+
 <div id="logToggle">▶ Output</div>
 <div id="log"></div>
 
@@ -312,6 +349,15 @@ const flashBtn = document.getElementById('flashBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const statusText = document.getElementById('statusText');
 const log = document.getElementById('log');
+const progressWrap = document.getElementById('progressWrap');
+const progressBar  = document.getElementById('progressBar');
+
+function setProgress(pct, state) {
+  progressWrap.classList.add('visible');
+  progressBar.style.width = pct + '%';
+  progressBar.classList.remove('done', 'failed');
+  if (state) { progressBar.classList.add(state); }
+}
 
 // Init
 vscode.postMessage({ type: 'listPorts' });
@@ -361,11 +407,17 @@ window.addEventListener('message', ({ data: msg }) => {
       log.innerHTML = '';
       log.classList.add('visible');
       document.getElementById('logToggle').textContent = '▼ Output';
+      setProgress(0, null);
       break;
     case 'flashDone':
       flashBtn.disabled = false;
       cancelBtn.disabled = true;
       statusText.textContent = msg.success ? 'Done ✓' : 'Failed ✗';
+      setProgress(msg.success ? 100 : progressBar ? parseInt(progressBar.style.width) || 0 : 0,
+                  msg.success ? 'done' : 'failed');
+      break;
+    case 'progress':
+      setProgress(msg.value, null);
       break;
     case 'log': {
       const span = document.createElement('span');

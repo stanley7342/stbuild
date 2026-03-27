@@ -8,5 +8,9 @@
 	},
 	// Turn off tsc task auto detection since we have the necessary tasks as npm scripts
 	"typescript.tsc.autoDetect": "off",
-	"mcuBuild.serial.port": "COM9"
+	"mcuBuild.serial.port": "COM9",
+	"mcuBuild.cmake.configFile": "c:\\Users\\Stanley\\Rafael-IoT-SDK-Internal\\examples\\helloworld\\default-rf1301-evb.config",
+	"[Log]": {
+		"editor.wordWrap": "on"
+	}
 }

@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(\"c:\\\\Users\\\\Stanley\\\\Rafael-IoT-SDK-Internal\\\\toolchain\\\\isp_tool\\\\isp_download_tool.exe\" --help)"
+      "Bash(\"c:\\\\Users\\\\Stanley\\\\Rafael-IoT-SDK-Internal\\\\toolchain\\\\isp_tool\\\\isp_download_tool.exe\" --help)",
+      "Bash(code --install-extension \"c:\\\\Users\\\\Stanley\\\\stbuild\\\\stbuild-1.0.0.vsix\")",
+      "Bash(where code:*)",
+      "Bash(where code.cmd)",
+      "Bash(\"C:\\\\Users\\\\Stanley\\\\AppData\\\\Local\\\\Programs\\\\Microsoft VS Code\\\\bin\\\\code.cmd\" --install-extension \"c:\\\\Users\\\\Stanley\\\\stbuild\\\\stbuild-1.0.0.vsix\")",
+      "Bash(ls \"C:\\\\Users\\\\Stanley\\\\Rafael-IoT-SDK-Internal\\\\tools\\\\Debugger\\\\OpenOCD\\\\bin\\\\win\"\" 2>/dev/null && ls \"C:UsersStanleyRafael-IoT-SDK-InternaltoolsDebuggerOpenOCD\"\")",
+      "Bash(find C:/Users/Stanley/Rafael-IoT-SDK-Internal/tools/Debugger/OpenOCD -name *.cfg)",
+      "Bash(grep -E '\\\\.\\(ts|js\\)$')",
+      "Bash(grep -E \"\\\\.ts$\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Stanley\\stbuild"
     ]
   }
 }
