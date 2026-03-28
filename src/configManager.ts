@@ -37,6 +37,14 @@ export class ConfigManager {
         this.cfg.update('cmake.configFile', value, vscode.ConfigurationTarget.Workspace);
     }
 
+    get chipName(): string {
+        return this.cfg.get<string>('cmake.chipName', '');
+    }
+
+    set chipName(value: string) {
+        this.cfg.update('cmake.chipName', value, vscode.ConfigurationTarget.Workspace);
+    }
+
     get generator(): string {
         return this.cfg.get<string>('cmake.generator', '');
     }

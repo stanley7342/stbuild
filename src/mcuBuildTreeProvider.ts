@@ -36,19 +36,22 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
 
     private _sourceFolder: string | undefined;
     private _cmakeSource: string | undefined;
+    private _chipName: string | undefined;
     private _compiling = false;
     private _flashing = false;
 
     // Stable references so targeted refresh won't collapse these nodes
     private readonly _sourceFolderItem = new McuBuildItem(
-        'Source Files', vscode.TreeItemCollapsibleState.Collapsed, 'mcuBuild.selectSourceFolder', 'folder-opened', 'not set'
+        'Project', vscode.TreeItemCollapsibleState.Collapsed, 'mcuBuild.selectSourceFolder', 'folder-opened', 'not set'
     );
 
     constructor(
         private readonly config: ConfigManager,
         private readonly toolchain: ToolchainManager,
         private readonly debug?: DebugManager
-    ) {}
+    ) {
+        this._chipName = config.chipName || undefined;
+    }
 
     setCmakeSource(dir: string | undefined): void {
         this._cmakeSource = dir;
@@ -66,10 +69,20 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
     }
 
     get sourceFolder(): string | undefined { return this._sourceFolder; }
+    get cmakeSource(): string | undefined { return this._cmakeSource; }
+
+    setChipName(name: string): void {
+        this._chipName = name;
+        this._onDidChangeTreeData.fire(undefined);
+    }
 
     setSourceFolder(folder: string | undefined): void {
         this._sourceFolder = folder;
         this._sourceFolderItem.description = folder ? path.basename(folder) : 'not set';
+        // Auto-detect CMakeLists.txt in the project folder
+        if (folder && fs.existsSync(path.join(folder, 'CMakeLists.txt'))) {
+            this._cmakeSource = folder;
+        }
         // Fire with the specific item → only its children are re-queried, expansion state preserved
         this._onDidChangeTreeData.fire(this._sourceFolderItem);
     }
@@ -100,8 +113,8 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
         switch (typeof element.label === 'string' ? element.label : '') {
             case 'Build':
                 return [
-                    new McuBuildItem('CMake Source', vscode.TreeItemCollapsibleState.None, 'mcuBuild.selectSourceFolder', 'root-folder', this._cmakeSource ? path.basename(this._cmakeSource) : 'workspace root', 'cmakeSource'),
-                    new McuBuildItem('Config File', vscode.TreeItemCollapsibleState.None, this.config.configFile ? 'mcuBuild.openConfigFile' : 'mcuBuild.selectConfigFile', 'file-code', this.config.configFile ? path.basename(this.config.configFile) : 'not set', this.config.configFile ? 'configFileSet' : 'configFile'),
+                    new McuBuildItem('CMake Source', vscode.TreeItemCollapsibleState.None, 'mcuBuild.selectSourceFolder', 'root-folder', this._cmakeSource ?? 'workspace root', 'cmakeSource'),
+                    new McuBuildItem('Chip Name', vscode.TreeItemCollapsibleState.None, 'mcuBuild.selectChip', 'chip', this._chipName || 'not set', 'chipName'),
                     new McuBuildItem('Build Type', vscode.TreeItemCollapsibleState.None, 'mcuBuild.selectBuildType', 'symbol-enum', this.config.buildType, 'buildType'),
                     (() => {
                         const item = new McuBuildItem(
@@ -158,7 +171,7 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
                     new McuBuildItem('Open Serial Monitor', vscode.TreeItemCollapsibleState.None, 'mcuBuild.openSerialMonitor', 'terminal', undefined, 'openSerial'),
                     new McuBuildItem('Select Port', vscode.TreeItemCollapsibleState.None, 'mcuBuild.selectSerialPort', 'plug', this.config.serialPort || 'not set', 'selectPort'),
                 ];
-            case 'Source Files':
+            case 'Project':
                 return this.listDir(this._sourceFolder);
             case 'CMSIS-DAP Debug': {
                 const dbg = this.debug;

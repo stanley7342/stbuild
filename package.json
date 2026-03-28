@@ -364,10 +364,6 @@
           "name": "史丹利測試"
         },
         {
-          "id": "mcuConfigTreeView",
-          "name": "Config Editor"
-        },
-        {
           "id": "mcuSdkView",
           "name": "SDK Manager"
         }
@@ -383,11 +379,6 @@
         {
           "command": "mcuBuild.flash",
           "when": "view == mcuBuildView",
-          "group": "navigation"
-        },
-        {
-          "command": "mcuBuild.configSave",
-          "when": "view == mcuConfigTreeView",
           "group": "navigation"
         },
         {
@@ -480,11 +471,6 @@
         {
           "command": "mcuBuild.refreshToolchain",
           "when": "view == mcuBuildView && viewItem == refreshToolchain",
-          "group": "inline"
-        },
-        {
-          "command": "mcuBuild.configEditValue",
-          "when": "view == mcuConfigTreeView && (viewItem == configString || viewItem == configNumber)",
           "group": "inline"
         },
         {

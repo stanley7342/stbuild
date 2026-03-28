@@ -8,7 +8,7 @@ import { SerialMonitor } from './serialMonitor';
 import { StatusBarManager } from './statusBar';
 import { McuBuildTreeProvider } from './mcuBuildTreeProvider';
 import { ToolchainManager } from './toolchainManager';
-import { ConfigFileTreeProvider, ConfigTreeItem } from './configTreeProvider';
+import { ConfigPanel } from './configPanel';
 import { FlashPanel } from './flashPanel';
 import { DebugManager } from './debugManager';
 import { SdkManager } from './sdkManager';
@@ -26,7 +26,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const toolchainMgr = new ToolchainManager();
     const debugMgr = new DebugManager(output);
     const treeProvider = new McuBuildTreeProvider(config, toolchainMgr, debugMgr);
-    const configTreeProvider = new ConfigFileTreeProvider();
+    let configPanel: ConfigPanel | undefined;
     const sdkMgr = new SdkManager(output, context);
     const sdkTreeProvider = new SdkTreeProvider(sdkMgr);
 
@@ -43,8 +43,8 @@ export function activate(context: vscode.ExtensionContext): void {
         config.getWorkspaceRoot();
     if (savedSourceFolder) {
         treeProvider.setSourceFolder(savedSourceFolder);
-        buildMgr.cmakeSourceDir = savedSourceFolder;
-        treeProvider.setCmakeSource(savedSourceFolder);
+        buildMgr.cmakeSourceDir = treeProvider.cmakeSource ?? savedSourceFolder;
+        treeProvider.setCmakeSource(treeProvider.cmakeSource ?? savedSourceFolder);
         flashPanel.sourceFolder = savedSourceFolder;
         debugMgr.sourceDir = savedSourceFolder;
         // Auto-detect config file from source folder
@@ -52,11 +52,7 @@ export function activate(context: vscode.ExtensionContext): void {
             ? fs.readdirSync(savedSourceFolder).filter(f => f.endsWith('.config') || f === 'defconfig')
             : [];
         if (savedCandidates.length > 0 && !config.configFile) {
-            const detected = path.join(savedSourceFolder, savedCandidates[0]);
-            config.configFile = detected;
-            configTreeProvider.load(detected);
-        } else if (config.configFile && fs.existsSync(config.configFile)) {
-            configTreeProvider.load(config.configFile);
+            config.configFile = path.join(savedSourceFolder, savedCandidates[0]);
         }
         treeProvider.refresh();
     }
@@ -65,11 +61,6 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.window.registerTreeDataProvider('mcuSdkView', sdkTreeProvider)
     );
 
-    const configTreeView = vscode.window.createTreeView('mcuConfigTreeView', {
-        treeDataProvider: configTreeProvider,
-        showCollapseAll: false,
-    });
-    context.subscriptions.push(configTreeView);
 
     // Keep status bar in sync with build state
     buildMgr.onStatusChanged(s => {
@@ -97,9 +88,7 @@ export function activate(context: vscode.ExtensionContext): void {
             try {
                 await vscode.window.withProgress(
                     { location: vscode.ProgressLocation.Notification, title: 'Compiling', cancellable: false },
-                    (_progress) => buildMgr.rebuild(
-                        (increment, message) => _progress.report({ increment, message })
-                    )
+                    () => buildMgr.rebuild()
                 );
             } finally {
                 treeProvider.setCompiling(false);
@@ -126,8 +115,8 @@ export function activate(context: vscode.ExtensionContext): void {
             if (uris?.[0]) {
                 const folder = uris[0].fsPath;
                 treeProvider.setSourceFolder(folder);
-                buildMgr.cmakeSourceDir = folder;
-                treeProvider.setCmakeSource(folder);
+                buildMgr.cmakeSourceDir = treeProvider.cmakeSource ?? folder;
+                treeProvider.setCmakeSource(treeProvider.cmakeSource ?? folder);
                 flashPanel.sourceFolder = folder;
                 debugMgr.sourceDir = folder;
                 context.workspaceState.update('mcuBuild.sourceFolder', folder);
@@ -137,9 +126,7 @@ export function activate(context: vscode.ExtensionContext): void {
                     ? fs.readdirSync(folder).filter(f => f.endsWith('.config') || f === 'defconfig')
                     : [];
                 if (candidates.length > 0) {
-                    const detected = path.join(folder, candidates[0]);
-                    config.configFile = detected;
-                    configTreeProvider.load(detected);
+                    config.configFile = path.join(folder, candidates[0]);
                 }
                 treeProvider.refresh();
             }
@@ -155,25 +142,45 @@ export function activate(context: vscode.ExtensionContext): void {
             });
             if (uris?.[0]) {
                 config.configFile = uris[0].fsPath;
-                configTreeProvider.load(uris[0].fsPath);
-                vscode.commands.executeCommand('mcuConfigTreeView.focus');
+                configPanel = ConfigPanel.open(context);
+                configPanel.load(uris[0].fsPath);
             }
         }],
         ['mcuBuild.openConfigFile', () => {
             if (config.configFile) {
-                configTreeProvider.load(config.configFile);
-                vscode.commands.executeCommand('mcuConfigTreeView.focus');
+                configPanel = ConfigPanel.open(context);
+                configPanel.load(config.configFile);
             } else {
                 vscode.window.showWarningMessage('No config file selected. Please select a config file first.');
             }
         }],
+        ['mcuBuild.selectChip', async () => {
+            const chips = ['rf1301', 'rt581', 'rt582', 'rt583', 'rt584ha4', 'rt584h', 'rt584l'];
+            const pick = await vscode.window.showQuickPick(
+                chips.map(c => ({ label: c, description: c === config.chipName ? '(current)' : '' })),
+                { placeHolder: 'Select chip name' }
+            );
+            if (!pick) { return; }
+            const sourceDir = treeProvider.cmakeSource ?? config.getWorkspaceRoot();
+            const cfgPath = path.join(sourceDir, `default-${pick.label}-evb.config`);
+            if (fs.existsSync(cfgPath)) {
+                config.chipName = pick.label;
+                config.configFile = cfgPath;
+                treeProvider.setChipName(pick.label);
+                configPanel = ConfigPanel.open(context);
+                configPanel.load(cfgPath);
+            } else {
+                vscode.window.showWarningMessage(`Config file not found: ${cfgPath}`);
+            }
+            treeProvider.refresh();
+        }],
         ['mcuBuild.configSave', () => {
-            const ok = configTreeProvider.save();
-            if (ok) { vscode.window.showInformationMessage(`Saved ${configTreeProvider.fileName}`); }
+            const ok = configPanel?.save();
+            if (ok) { vscode.window.showInformationMessage(`Saved ${configPanel?.fileName}`); }
             else    { vscode.window.showErrorMessage('Failed to save config file.'); }
         }],
-        ['mcuBuild.configToggleBool', (item: unknown) => configTreeProvider.toggleBool(item as ConfigTreeItem)],
-        ['mcuBuild.configEditValue',  (item: unknown) => configTreeProvider.editValue(item as ConfigTreeItem)],
+        ['mcuBuild.configToggleBool', () => { /* handled in webview */ }],
+        ['mcuBuild.configEditValue',  () => { /* handled in webview */ }],
         ['mcuBuild.clearConfigFile', () => { config.configFile = ''; }],
         // CMSIS-DAP Debug
         ['mcuBuild.startDebug',              () => debugMgr.startDebug()],
@@ -218,8 +225,14 @@ export function activate(context: vscode.ExtensionContext): void {
                             if (phase === 'flash' && pct >= 100) { resolveFlash(); }
                         });
 
-                        await flashPhase;
-                        await flashDone;
+                        try {
+                            await flashPhase;
+                            await flashDone;
+                        } catch (err: unknown) {
+                            const msg = err instanceof Error ? err.message : String(err);
+                            vscode.window.showErrorMessage(`Flash failed: ${msg}`);
+                            return; // cancel — dismiss progress notification
+                        }
                     }
                 );
             } finally {
