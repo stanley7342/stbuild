@@ -209,6 +209,20 @@
         "command": "mcuBuild.sdk.openAsWorkspace",
         "title": "SDK: Open as Workspace",
         "icon": "$(folder-opened)"
+      },
+      {
+        "command": "mcuBuild.openDocs",
+        "title": "MCU: Open Documentation",
+        "icon": "$(book)"
+      },
+      {
+        "command": "mcuBuild.openDocsAt",
+        "title": "MCU: Open Documentation Section"
+      },
+      {
+        "command": "mcuBuild.openSettings",
+        "title": "MCU: Settings",
+        "icon": "$(settings-gear)"
       }
     ],
     "configuration": {
@@ -311,6 +325,12 @@
           "default": 115200,
           "description": "Serial baud rate"
         },
+        "mcuBuild.cmake.chipName": {
+          "type": "string",
+          "enum": ["rf1301","rt581","rt582","rt583","rt584ha4","rt584h","rt584l"],
+          "default": "",
+          "description": "Rafael chip name — selects the matching default-<chip>-evb.config file"
+        },
         "mcuBuild.debug.elfFile": {
           "type": "string",
           "default": "",
@@ -366,6 +386,10 @@
         {
           "id": "mcuSdkView",
           "name": "SDK Manager"
+        },
+        {
+          "id": "mcuDocsView",
+          "name": "Documentation"
         }
       ]
     },
@@ -384,6 +408,11 @@
         {
           "command": "mcuBuild.sdk.fetchTags",
           "when": "view == mcuSdkView",
+          "group": "navigation"
+        },
+        {
+          "command": "mcuBuild.openSettings",
+          "when": "view == mcuBuildView",
           "group": "navigation"
         }
       ],

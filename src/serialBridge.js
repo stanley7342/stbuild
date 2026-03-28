@@ -42,7 +42,18 @@ async function handle(msg) {
                 if (err) { send({ type: 'error', message: err.message }); return; }
                 send({ type: 'connected', port: msg.path, baudRate: msg.baudRate });
             });
-            port.on('data', data => send({ type: 'data', text: Buffer.from(data).toString('binary') }));
+            let dataBuf = '';
+            let flushTimer = null;
+            port.on('data', data => {
+                dataBuf += Buffer.from(data).toString('binary');
+                if (!flushTimer) {
+                    flushTimer = setTimeout(() => {
+                        send({ type: 'data', text: dataBuf });
+                        dataBuf = '';
+                        flushTimer = null;
+                    }, 16);
+                }
+            });
             port.on('error', err => send({ type: 'error', message: err.message }));
             port.on('close', () => { port = null; send({ type: 'disconnected' }); });
             break;

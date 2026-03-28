@@ -1,306 +1,444 @@
-# 史丹利測試 — 使用說明
+# 史丹利測試 — 使用者指南
 
-適用於 CMake 嵌入式 MCU 專案的 VSCode 開發輔助工具，支援建置、燒錄、序列監控與 CMSIS-DAP 除錯。
+適用版本：v1.0.0
 
 ---
 
 ## 目錄
 
-1. [安裝需求](#安裝需求)
-2. [快速開始](#快速開始)
-3. [Source Files — 選擇來源目錄](#source-files)
-4. [Build — 建置](#build)
-5. [Output Files — 輸出檔案](#output-files)
-6. [Flash — 韌體燒錄 (UART)](#flash)
-7. [Serial Monitor — 序列監控](#serial-monitor)
-8. [Toolchain — 工具鏈管理](#toolchain)
-9. [CMSIS-DAP Debug — 除錯](#cmsis-dap-debug)
-10. [Config Editor — 設定檔編輯](#config-editor)
-11. [快捷鍵](#快捷鍵)
-12. [設定參數](#設定參數)
+1. [簡介](#1-簡介)
+2. [安裝與啟動](#2-安裝與啟動)
+3. [介面概覽](#3-介面概覽)
+4. [Project（專案目錄）](#4-project專案目錄)
+5. [Build（編譯）](#5-build編譯)
+6. [Output Files（輸出檔案）](#6-output-files輸出檔案)
+7. [Flash（燒錄）](#7-flash燒錄)
+8. [Serial Monitor（串列監視器）](#8-serial-monitor串列監視器)
+9. [Toolchain（工具鏈）](#9-toolchain工具鏈)
+10. [CMSIS-DAP Debug（偵錯）](#10-cmsis-dap-debug偵錯)
+11. [SDK Manager（SDK 管理）](#11-sdk-managersdk-管理)
+12. [Config Editor（設定檔編輯器）](#12-config-editor設定檔編輯器)
+13. [設定值參考](#13-設定值參考)
+14. [常見問題](#14-常見問題)
 
 ---
 
-## 安裝需求
+## 1. 簡介
 
-| 項目 | 說明 |
+**史丹利測試**是一個針對 Rafael MCU（RT58x / RF1301 系列）開發的 VS Code 擴充功能，整合以下功能於單一側欄：
+
+- CMake 專案建置（Configure + Build）
+- UART 與 CMSIS-DAP 韌體燒錄
+- 串列埠監視器
+- ARM 工具鏈安裝管理
+- CMSIS-DAP 硬體除錯（搭配 Cortex-Debug）
+- Rafael IoT SDK 版本管理
+- Kconfig 格式設定檔視覺化編輯
+
+**啟動條件**：開啟的工作區根目錄或子目錄內必須有 `CMakeLists.txt`。
+
+---
+
+## 2. 安裝與啟動
+
+### 2.1 安裝 VSIX
+
+1. 下載 `stbuild-x.x.x.vsix`
+2. 在 VS Code 命令列板（`Ctrl+Shift+P`）執行 **Extensions: Install from VSIX…**
+3. 選取 `.vsix` 檔案，完成後重新載入視窗
+
+### 2.2 必要相依套件
+
+| 套件 | 說明 |
 |------|------|
-| VSCode | ≥ 1.110.0 |
-| [cortex-debug](https://marketplace.visualstudio.com/items?itemName=marus25.cortex-debug) | CMSIS-DAP 除錯必要 (會自動安裝) |
-| CMake | ≥ 3.16，可透過工具鏈管理員安裝 |
-| Ninja | 建議使用，可透過工具鏈管理員安裝 |
-| arm-none-eabi-gcc | ARM 交叉編譯工具，可透過工具鏈管理員安裝 |
+| `marus25.cortex-debug` | CMSIS-DAP 偵錯工作階段（自動安裝） |
 
-> 擴充功能在工作區包含 `CMakeLists.txt` 時自動啟動。
+### 2.3 確認啟動
+
+開啟含有 `CMakeLists.txt` 的工作區後，左側活動列出現 MCU 圖示，側欄顯示**史丹利測試**即代表擴充功能已啟動。
 
 ---
 
-## 快速開始
+## 3. 介面概覽
 
-1. 用 VSCode 開啟含有 `CMakeLists.txt` 的專案資料夾
-2. 在側邊欄點擊 **史丹利測試** 圖示
-3. 點擊 **Source Files** 選擇來源目錄
-4. 在 **Toolchain** 確認工具鏈皆已安裝
-5. 在 **Build** 按下 **Build** 進行編譯
-6. 編譯完成後，在 **Flash** 或 **CMSIS-DAP Debug** 燒錄或除錯
+側欄分為兩個面板：
 
----
+| 面板 | 說明 |
+|------|------|
+| **史丹利測試**（mcuBuildView） | 主功能面板，包含所有建置、燒錄、偵錯控制項 |
+| **SDK Manager**（mcuSdkView） | Rafael IoT SDK 版本下載與管理 |
 
-## Source Files
+主面板由上而下分為以下區段，均可展開/折疊：
 
-點擊 **Source Files** 項目可選擇 CMake 專案的來源目錄。
-
-- 選擇後，**CMake Source**、**Config File** 路徑與 Output Files 的掃描位置都會跟著更新
-- 選擇的路徑會儲存至工作區狀態，下次開啟 VSCode 時自動還原
-- 若來源目錄內包含 `.config` 或 `defconfig` 檔案，會自動載入至 Config Editor
-
----
-
-## Build
-
-| 項目 | 功能 | 快捷鍵 |
-|------|------|--------|
-| **CMake Source** | 點擊可重新選擇來源目錄 | — |
-| **Config File** | 點擊選擇 CMake 設定檔；已選擇時點擊可開啟 Config Editor | — |
-| **Build** | 執行 CMake 建置 | `F7` |
-| **Clean** | 清除 build 目錄輸出 | — |
-| **Rebuild** | Clean + Build | — |
-| **Build Type** | 切換 Debug / Release / RelWithDebInfo / MinSizeRel | — |
-
-建置輸出顯示於「史丹利測試」輸出頻道。狀態列右下方顯示目前 Build Type 及建置狀態。
+```
+▼ Project
+▼ Build
+▼ Output Files
+▼ Flash
+▼ Serial Monitor
+▼ Toolchain          （預設展開）
+▼ CMSIS-DAP Debug    （預設展開）
+```
 
 ---
 
-## Output Files
+## 4. Project（專案目錄）
 
-顯示 `build/` 目錄內最新的輸出檔案：
+### 功能
 
-| 圖示 | 類型 | 說明 |
+顯示目前選取之專案根目錄的完整檔案樹，方便直接點擊開啟原始檔。
+
+### 操作
+
+| 操作 | 說明 |
+|------|------|
+| 點擊 **Project** 節點 | 開啟資料夾選擇對話框，設定新的專案目錄 |
+| 點擊資料夾 | 展開/折疊子目錄 |
+| 點擊 `.c` / `.h` / `.s` 檔案 | 在編輯器開啟該檔案 |
+
+### 自動偵測
+
+選取專案目錄後，擴充功能會自動：
+- 搜尋目錄內的 `CMakeLists.txt` 並設定為 **CMake Source**（顯示絕對路徑）
+- 搜尋 `.config` 或 `defconfig` 檔案並帶入 Config Editor
+
+---
+
+## 5. Build（編譯）
+
+### 子項目說明
+
+| 項目 | 說明 | 操作 |
 |------|------|------|
-| `file-binary` | `.elf` | 最新 ELF 檔，描述欄顯示修改時間 |
-| `file-symlink-file` | `.bin` | 最新 BIN 檔，描述欄顯示修改時間 |
+| **CMake Source** | 傳入 `-S` 的 CMake 來源目錄，顯示絕對路徑 | 點擊重新選擇 |
+| **Chip Name** | 目標晶片型號，決定使用哪個 `.config` 檔 | 點擊開啟選單 |
+| **Build Type** | CMake 建置類型 | 點擊開啟選單 |
+| **Compile** | 執行建置 | 點擊觸發，執行中顯示旋轉圖示 |
 
-點擊任一項目可在檔案總管中定位該檔案。
+### 選擇晶片（Chip Name）
+
+點擊後出現快速選單：
+
+```
+rf1301 / rt581 / rt582 / rt583 / rt584ha4 / rt584h / rt584l
+```
+
+選取後自動在 CMake Source 目錄下尋找對應的 config 檔：
+
+```
+<cmake-source>/default-<chip>-evb.config
+```
+
+若檔案不存在，不套用並顯示警告。找到則自動開啟 Config Editor。
+
+### 選擇建置類型（Build Type）
+
+| 類型 | 說明 |
+|------|------|
+| Debug | 包含偵錯符號，最佳化關閉（預設） |
+| Release | 完整最佳化，無偵錯符號 |
+| RelWithDebInfo | 最佳化 + 保留偵錯符號 |
+| MinSizeRel | 最小化執行檔大小 |
+
+### 編譯流程
+
+按下 **Compile** 後：
+
+1. 執行 CMake Configure：
+   ```
+   cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=<type> -DCUSTOM_CONFIG_DIR=<config>
+   ```
+2. 執行 Ninja 建置：
+   ```
+   cmake --build build --clean-first
+   ```
+3. 通知列顯示即時進度，格式為 `[已完成/總數] 目前編譯的檔名`
+4. 完成後顯示成功或失敗通知
 
 ---
 
-## Flash
+## 6. Output Files（輸出檔案）
 
-### UART 燒錄 (ISP 工具)
+建置完成後，此區段自動列出 `build/` 目錄下最新的 `.elf` 和 `.bin` 檔案，並顯示修改時間。
 
-點擊 **Flash Firmware** 或 **Open Flash Panel (UART)** 開啟燒錄面板。
-
-**操作步驟：**
-1. 從下拉選單選擇 COM Port（點擊 🔄 重新整理）
-2. 輸入或瀏覽 `.bin` 檔路徑（會自動偵測最新 .bin）
-3. 按下 **Flash** 開始燒錄
-4. 進度條顯示燒錄進度，完成後顯示 ✓ Done
-
-| 狀態 | 顏色 |
+| 操作 | 說明 |
 |------|------|
-| 燒錄中 | 綠色 `#16825d` |
-| 成功 | 亮綠 `#2ea043` |
-| 失敗 | 紅色 `#c72e0f` |
-
-> 相關設定：`mcuBuild.flash.ispToolPath`、`mcuBuild.serial.port`
+| 點擊輸出檔案 | 在系統檔案總管中顯示該檔案 |
+| 右鍵 → **Use as Flash BIN** | 將此 `.bin` 設為 Flash Panel 的燒錄目標 |
 
 ---
 
-## Serial Monitor
+## 7. Flash（燒錄）
 
-點擊 **Open Serial Monitor** 開啟序列監控面板。
+### UART 燒錄（Flash Panel）
 
-### 連線設定
+點擊 **Open Flash Panel (UART)** 開啟 UART ISP 燒錄面板，透過串列埠下載韌體。
 
-| 項目 | 說明 |
-|------|------|
-| Port | 從下拉選單選擇，或直接輸入（如 `COM3`、`/dev/ttyUSB0`） |
-| Baud Rate | 1200 ~ 921600，預設 115200 |
-| Connect | 點擊連線；連線後按鈕變紅，再按斷線 |
+### OpenOCD 燒錄（CMSIS-DAP）
 
-### 顯示選項
+位於 **CMSIS-DAP Debug** 區段的 **Flash** 項目：
 
-| 選項 | 預設 | 說明 |
-|------|------|------|
-| Auto-scroll | ✓ 勾選 | 自動捲動至最新資料 |
-| Timestamp | 不勾選 | 在每行前加上 `[HH:MM:SS]` |
-| Local echo | 不勾選 | 在終端機顯示已輸入的字元 |
-| Line ending | None | 傳送時附加的行尾字元（None / CR / LF / CR+LF） |
-
-### 鍵盤對應
-
-| 按鍵 | 傳送 |
-|------|------|
-| 一般字元 | 立即傳送 |
-| `Enter` | 依 Line ending 設定傳送 |
-| `Backspace` | `0x08` |
-| `Tab` | `0x09` |
-| `Escape` | `0x1B` |
-| `Delete` | `0x7F` |
-| 方向鍵 | ANSI 跳脫序列 |
-| `Ctrl` + 字母 | 控制字元 `0x01`–`0x1A` |
-
-支援 ANSI 顏色（30–37、90–97）與粗體顯示。
+1. 自動尋找 `build/` 目錄內最新的 `.elf` 檔
+2. 通知列顯示燒錄進度（Erase 0→50%，Write 50→100%）
+3. 燒錄失敗時自動取消並顯示錯誤訊息
 
 ---
 
-## Toolchain
+## 8. Serial Monitor（串列監視器）
 
-展開 **Toolchain** 可查看工具安裝狀態，並執行安裝或移除。
+點擊 **Open Serial Monitor** 開啟串列終端機面板。
+
+### 工具列
+
+| 控制項 | 說明 |
+|--------|------|
+| 埠下拉選單 | 列出系統可用 COM 埠 |
+| 手動輸入框 | 直接輸入埠名（如 `COM9`），輸入後下拉自動隱藏 |
+| 鮑率選單 | 1200 ～ 921600 bps |
+| **Connect** | 開啟串列連線，連線中變為 **Disconnect**（紅色） |
+| **Clear** | 清除終端機畫面 |
+| Auto-scroll | 自動捲動到最新輸出 |
+| Timestamp | 每行前加上時間戳記 |
+| Local echo | 回顯送出的字元（黃色顯示） |
+| Line ending | CR+LF / LF / CR / None |
+
+### 鍵盤輸入
+
+點擊終端機後可直接鍵入，每個按鍵立即送出：
+
+| 按鍵 | 送出 |
+|------|------|
+| 一般字元 | 字元本身 |
+| Enter | 依 Line ending 設定 |
+| Backspace | `\x08` |
+| Tab | `\t` |
+| Escape | `\x1b` |
+| ↑ ↓ ← → | ANSI 游標控制碼 |
+| Ctrl + 字母 | 對應控制碼（Ctrl+C / Ctrl+A 保留給複製/全選） |
+
+### 效能說明
+
+採用雙層緩衝機制，高速資料（921600 baud）不掉字：
+- Bridge 層每 16 ms 批次傳送串列資料
+- Webview 層以 `requestAnimationFrame` 批次渲染，超過 5000 行自動裁切舊資料
+
+---
+
+## 9. Toolchain（工具鏈）
+
+顯示並管理三項編譯工具的安裝狀態。
 
 | 工具 | 說明 |
 |------|------|
-| ARM Cortex-M (arm-none-eabi-gcc) | ARM 交叉編譯工具鏈 |
-| CMake | 建置系統 |
-| Ninja | 建置執行器 |
+| **ARM Cortex-M** | `arm-none-eabi-gcc` 交叉編譯器 |
+| **CMake** | 建置系統產生器 |
+| **Ninja** | 快速建置執行器 |
 
-- **已安裝**：顯示 ✓ 圖示及版本號
-- **未安裝**：顯示雲端下載圖示，點擊可選擇版本安裝
-- **移除**：右鍵點擊已安裝工具，選擇移除
+### 狀態圖示
 
-安裝方式：
-- **Windows**：winget（支援版本選擇）或 Chocolatey
-- **macOS**：Homebrew
-- **Linux**：apt-get
-
----
-
-## CMSIS-DAP Debug
-
-使用 OpenOCD + cortex-debug 進行片上除錯。
-
-### 前置條件
-
-- 已安裝 `marus25.cortex-debug` 擴充功能（自動安裝）
-- CMSIS-DAP 偵錯器已連接（如 DAPLink）
-- Rafael IoT SDK 工作區包含 `tools/Debugger/OpenOCD/`
-
-### 設定項目
-
-| 項目 | 說明 |
+| 圖示 | 狀態 |
 |------|------|
-| **ELF File** | 除錯目標 ELF 檔（自動偵測最新） |
-| **Interface** | 偵錯介面設定（預設 `interface/cmsis-dap.cfg`） |
-| **Target Config** | 晶片設定（依 Device 自動選擇） |
-| **GDB** | GDB 執行檔路徑（預設 `arm-none-eabi-gdb`） |
-| **OpenOCD** | OpenOCD 執行檔路徑（自動偵測 SDK 路徑） |
+| ✓（綠色）| Installed（版本號顯示於右側） |
+| ⬇（雲端下載）| 未安裝，點擊可安裝 |
 
-### SoC 與 Target 對應
-
-| Device | OpenOCD Target |
-|--------|---------------|
-| rt581, rt582, rt583 | `target/rt58x.cfg` |
-| rt584l, rt584h, rt584ha4, rf1301 | `target/rt584.cfg` |
-
-### Start Debug 流程
-
-1. 在終端機 `OpenOCD (RT58x)` 中啟動 OpenOCD
-   - **Windows**：直接呼叫 `openocd.exe`（等同 `openocd_rt58x.sh` 的 Windows 版）
-   - **Linux/macOS**：執行 `bash openocd_rt58x.sh <soc>`
-2. 等待 2.5 秒讓 OpenOCD 初始化
-3. cortex-debug 透過 `localhost:50000` 連接 GDB Server
-4. 自動執行 `monitor reset halt` 讓目標停在初始狀態
-5. VSCode 除錯面板啟動，可設定中斷點、查看暫存器
-
-### Flash Firmware (OpenOCD)
-
-點擊 **Flash Firmware**（CMSIS-DAP Debug 區塊下）：
-
-- 自動選取 `<source folder>/build/` 內最新的 `.elf` 檔
-- 執行 `openocd … -c "program {firmware.elf} verify reset exit"`
-- 輸出顯示於 `OpenOCD Flash` 終端機
-- 燒錄完成後自動 reset 並執行新韌體
-
-### Generate launch.json
-
-點擊 **Generate launch.json** 會在 `.vscode/launch.json` 寫入 cortex-debug 設定，方便日後直接從 VSCode Run & Debug 面板啟動。
+點擊 **Refresh Status** 可重新偵測所有工具的安裝狀態。
 
 ---
 
-## Config Editor
+## 10. CMSIS-DAP Debug（偵錯）
 
-在側邊欄的 **Config Editor** 面板中可直接編輯 Kconfig 格式的 `.config` / `defconfig` 檔案。
+### 連線偵測
 
-### 項目類型與顏色
+擴充功能每 3 秒自動偵測 CMSIS-DAP / DAPLink 裝置：
 
-| 顏色 | 類型 | 操作 |
+| 狀態 | 樹狀顯示 | Output 輸出 |
+|------|---------|------------|
+| 已連接 | Connected — `ID: <序號>` | `[CMSIS-DAP] ID: xxxxxxxx` |
+| 未連接 | Not Connected | `[CMSIS-DAP] Disconnected` |
+
+### 子項目說明
+
+| 項目 | 說明 | 操作 |
 |------|------|------|
-| 紫色 (symbol-namespace) | 區段標題 | — |
-| 綠色 ✓ / 紅色 ✗ | 布林值 | 點擊切換 y/n |
-| 藍色 (symbol-string) | 字串值 | 點擊輸入新值 |
-| 黃色 (symbol-number) | 數字值 | 點擊輸入新值 |
+| **Connected / Not Connected** | 探針狀態與 ICE ID | 自動更新 |
+| **Start Debug** | 啟動 OpenOCD + Cortex-Debug | 點擊 |
+| **Flash** | 透過 OpenOCD 燒錄韌體 | 點擊 |
+| **ELF File** | 偵錯 ELF 路徑 | 點擊選擇（自動從 `build/` 偵測） |
+| **Interface** | OpenOCD 介面 cfg | 點擊選擇（預設 `interface/cmsis-dap.cfg`） |
+| **Target Config** | OpenOCD 目標 cfg | 點擊選擇（預設 `target/rt584.cfg`） |
+| **GDB** | GDB 執行檔路徑 | 點擊輸入 |
+| **OpenOCD** | OpenOCD 執行檔路徑 | 點擊選擇或自動偵測 |
+| **Generate launch.json** | 產生 `.vscode/launch.json` | 點擊 |
 
-修改後按面板右上角 **Save** 圖示儲存至檔案。
+### 啟動偵錯（Start Debug）
 
----
+1. 在 Project 目錄搜尋 OpenOCD 執行檔（`tools/Debugger/OpenOCD/bin/`）
+2. 開啟 **OpenOCD (RT58x)** 終端機並啟動 OpenOCD 伺服器
+3. 等待 2.5 秒初始化
+4. 以 `attach` 模式啟動 Cortex-Debug 工作階段
 
-## 快捷鍵
+**停止偵錯後**：自動終止 OpenOCD，並切回史丹利測試側欄。
 
-| 快捷鍵 | 命令 | 條件 |
-|--------|------|------|
-| `F7` | Build | 非除錯模式 |
-| `Ctrl+F7` | Flash (UART) | 非除錯模式 |
+### OpenOCD 搜尋路徑（優先順序）
 
----
+```
+<project-dir>/tools/Debugger/OpenOCD/bin/<win|mac|linux>/openocd[.exe]
+<project-dir>/tools/Debugger/OpenOCD/bin/openocd[.exe]
+<workspace-root>/tools/Debugger/OpenOCD/bin/...
+系統 PATH (openocd)
+```
 
-## 設定參數
+### SoC 與 Target Config 對應
 
-所有設定可在 VSCode 設定（`Ctrl+,`）搜尋 `mcuBuild` 找到。
-
-### CMake 建置設定
-
-| 設定 | 預設值 | 說明 |
-|------|--------|------|
-| `mcuBuild.cmake.buildDirectory` | `${workspaceFolder}/build` | CMake 輸出目錄 |
-| `mcuBuild.cmake.buildType` | `Debug` | 建置類型 |
-| `mcuBuild.cmake.configFile` | `""` | CMake -C 快取檔路徑 |
-| `mcuBuild.cmake.toolchainFile` | `""` | CMake 工具鏈檔路徑 |
-| `mcuBuild.cmake.generator` | `""` | CMake Generator（空白為預設） |
-| `mcuBuild.cmake.configureArgs` | `[]` | 額外 configure 參數 |
-| `mcuBuild.cmake.buildArgs` | `[]` | 額外 build 參數 |
-
-### 燒錄設定
-
-| 設定 | 預設值 | 說明 |
-|------|--------|------|
-| `mcuBuild.flash.ispToolPath` | *(預設路徑)* | ISP 燒錄工具路徑 |
-| `mcuBuild.flash.binaryPath` | `""` | 燒錄 BIN 路徑（空白自動偵測） |
-
-### 序列監控設定
-
-| 設定 | 預設值 | 說明 |
-|------|--------|------|
-| `mcuBuild.serial.port` | `""` | 預設 COM Port |
-| `mcuBuild.serial.baudRate` | `115200` | 預設鮑率 |
-
-### 除錯設定
-
-| 設定 | 預設值 | 說明 |
-|------|--------|------|
-| `mcuBuild.debug.elfFile` | `""` | ELF 檔路徑（空白自動偵測） |
-| `mcuBuild.debug.gdbPath` | `arm-none-eabi-gdb` | GDB 執行檔 |
-| `mcuBuild.debug.openocdPath` | `""` | OpenOCD 路徑（空白自動偵測） |
-| `mcuBuild.debug.interfaceCfg` | `interface/cmsis-dap.cfg` | 介面設定檔 |
-| `mcuBuild.debug.targetCfg` | `target/rt584.cfg` | 目標設定檔 |
-| `mcuBuild.debug.gdbPort` | `50000` | GDB Server Port |
-| `mcuBuild.debug.device` | `RT584L` | 目標 SoC 型號 |
+| 晶片 | OpenOCD Target |
+|------|---------------|
+| rt581 / rt582 / rt583 | `target/rt58x.cfg` |
+| rt584l / rt584h / rt584ha4 / rf1301 | `target/rt584.cfg` |
 
 ---
 
-## 常見問題
+## 11. SDK Manager（SDK 管理）
 
-**Q: 啟動後側邊欄沒有出現「史丹利測試」**
-- 確認工作區根目錄有 `CMakeLists.txt`，擴充功能只在這個條件下啟動
+### 概覽
 
-**Q: Build 失敗，找不到 cmake 或 ninja**
-- 展開 **Toolchain** 確認工具已安裝，若未安裝點擊雲端圖示安裝
+從 `git@github.com:RafaelMicro/Rafael-IoT-SDK.git` 取得可用版本並安裝至本機。
 
-**Q: Flash 時找不到 COM Port**
-- 確認裝置已連接，點擊 🔄 重新整理序列埠清單
+### 取得可用版本
 
-**Q: Start Debug 出現 "configured debug type 'cortex-debug' is not supported"**
-- 安裝 [cortex-debug](https://marketplace.visualstudio.com/items?itemName=marus25.cortex-debug) 擴充功能
+點擊 **Fetch / Refresh**（或側欄標題列的同步圖示）：
 
-**Q: OpenOCD Flash 出現 "Unexpected command line argument"**
-- 確認 `mcuBuild.debug.openocdPath` 指向正確的 OpenOCD 執行檔
-- 或留空讓系統自動偵測 `tools/Debugger/OpenOCD/bin/win/openocd.exe`
+- 執行 `git ls-remote --tags` 取回所有版本標籤
+- 已安裝版本顯示綠色 ✓
+
+### 安裝 SDK
+
+點擊版本標籤旁的 ⬇ 圖示：
+
+1. 在安裝路徑建立以版本號命名的子資料夾（預設：`C:\<tag>`）
+2. 執行 shallow clone：
+   ```
+   git clone --branch <tag> --depth 1 --single-branch --no-tags <repo> <path>
+   ```
+3. Output Channel 顯示即時進度（`\r` 換行，每行獨立顯示）
+4. Clone 完成後印出最近 10 筆 Git log
+5. 自動將安裝目錄加入 VS Code 工作區 Explorer（名稱：`SDK: <tag>`）
+
+### 移除 SDK
+
+右鍵已安裝版本 → **SDK: Remove Version**，確認後刪除目錄。
+
+### 前置需求
+
+本機需已設定 SSH 金鑰並有 Rafael GitHub 倉庫存取權：
+
+```bash
+# 測試 SSH 連線
+ssh -T git@github.com
+```
+
+---
+
+## 12. Config Editor（設定檔編輯器）
+
+### 開啟方式
+
+- 選擇 **Chip Name** 後自動開啟（若找到對應 `.config`）
+- 命令列板：**MCU: Open Config File Editor**
+- 命令列板：**MCU: Select Config File**（手動選取檔案）
+
+### 工具列
+
+| 元素 | 說明 |
+|------|------|
+| 橘色圓點 | 有未儲存的變更 |
+| 檔名 | 目前開啟的設定檔 |
+| **Save** | 儲存變更回 `.config` 檔 |
+
+### 設定項目類型
+
+| 類型 | 顯示 | 操作 |
+|------|------|------|
+| **Bool** | ✓ 綠色（已開啟）/ ✗ 紅色（已關閉） | 點擊切換 |
+| **String** | 文字輸入框 | 直接編輯 |
+| **Number** | 數字輸入框 | 直接編輯 |
+
+### 區段
+
+設定依 `# <名稱>` 注解自動分組，點擊區段標題展開/折疊。
+
+### 儲存格式（Kconfig 標準）
+
+```
+CONFIG_FEATURE_A=y
+# CONFIG_FEATURE_B is not set
+CONFIG_STRING_VAL="hello"
+CONFIG_NUM_VAL=42
+```
+
+---
+
+## 13. 設定值參考
+
+| 設定鍵 | 類型 | 預設值 | 說明 |
+|--------|------|--------|------|
+| `mcuBuild.cmake.buildDirectory` | string | `${workspaceFolder}/build` | 建置輸出目錄 |
+| `mcuBuild.cmake.buildType` | string | `Debug` | CMake 建置類型 |
+| `mcuBuild.cmake.configFile` | string | `""` | Kconfig 設定檔路徑 |
+| `mcuBuild.cmake.chipName` | string | `""` | 目前選取的晶片 |
+| `mcuBuild.cmake.toolchainFile` | string | `""` | CMake toolchain 檔 |
+| `mcuBuild.cmake.configureArgs` | array | `[]` | 額外 CMake configure 參數 |
+| `mcuBuild.cmake.buildArgs` | array | `[]` | 額外 CMake build 參數 |
+| `mcuBuild.flash.tool` | string | `openocd` | 燒錄工具（openocd/esptool/custom） |
+| `mcuBuild.serial.port` | string | `""` | 串列埠（如 `COM9`） |
+| `mcuBuild.serial.baudRate` | number | `115200` | 串列鮑率 |
+| `mcuBuild.debug.elfFile` | string | `""` | 偵錯 ELF 路徑 |
+| `mcuBuild.debug.gdbPath` | string | `arm-none-eabi-gdb` | GDB 路徑 |
+| `mcuBuild.debug.openocdPath` | string | `""` | OpenOCD 路徑（空白=自動偵測） |
+| `mcuBuild.debug.interfaceCfg` | string | `interface/cmsis-dap.cfg` | OpenOCD 介面 |
+| `mcuBuild.debug.targetCfg` | string | `target/rt584.cfg` | OpenOCD 目標 |
+| `mcuBuild.debug.gdbPort` | number | `50000` | GDB 監聽埠 |
+| `mcuBuild.debug.device` | string | `RT584L` | 目標裝置名稱 |
+
+---
+
+## 14. 常見問題
+
+**Q: 側欄沒有出現**
+確認工作區包含 `CMakeLists.txt`，或手動執行命令列板 → **Developer: Reload Window**。
+
+**Q: CMake Source 顯示「workspace root」而非絕對路徑**
+點擊 **CMake Source** 重新選取包含 `CMakeLists.txt` 的目錄，或先設定 **Project** 目錄（自動偵測 CMakeLists.txt）。
+
+**Q: 選擇 Chip Name 後顯示「Config file not found」**
+表示 `<cmake-source>/default-<chip>-evb.config` 不存在。確認 Project 目錄正確，或手動執行 **MCU: Select Config File**。
+
+**Q: Start Debug 失敗「openocd_rt58x.sh not found」**
+確認 SDK 目錄結構包含：
+```
+tools/Debugger/OpenOCD/script/openocd_rt58x.sh
+tools/Debugger/OpenOCD/bin/<win|mac|linux>/openocd[.exe]
+```
+
+**Q: CMSIS-DAP 始終顯示「Not Connected」**
+1. 確認 USB 已連接且驅動程式正確安裝
+2. Windows：確認裝置管理員可見 CMSIS-DAP / DAPLink 裝置
+3. 點擊任意工具列項目觸發偵測，或等待下一個 3 秒輪詢
+
+**Q: SDK 安裝失敗**
+執行以下命令確認 SSH 設定正確：
+```bash
+ssh -T git@github.com
+```
+若失敗，參考 [GitHub SSH 設定說明](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)。
+
+**Q: Serial Monitor 掉字**
+確認 `.vscode/settings.json` 包含：
+```json
+"output.smartScroll.enabled": false,
+"[Log]": { "editor.wordWrap": "on" }
+```
+若仍掉字，嘗試降低目標端輸出量或鮑率。
+
+---
+
+*文件版本：v1.0.0 — 史丹利測試*

@@ -13,6 +13,8 @@ import { FlashPanel } from './flashPanel';
 import { DebugManager } from './debugManager';
 import { SdkManager } from './sdkManager';
 import { SdkTreeItem, SdkTreeProvider } from './sdkTreeProvider';
+import { DocsTreeProvider } from './docsTreeProvider';
+import { SettingsPanel } from './settingsPanel';
 
 export function activate(context: vscode.ExtensionContext): void {
     const output = vscode.window.createOutputChannel('史丹利測試');
@@ -29,7 +31,27 @@ export function activate(context: vscode.ExtensionContext): void {
     let configPanel: ConfigPanel | undefined;
     const sdkMgr = new SdkManager(output, context);
     const sdkTreeProvider = new SdkTreeProvider(sdkMgr);
+    const docsTreeProvider = new DocsTreeProvider(context.extensionUri);
+    const settingsPanel = new SettingsPanel(context, config, debugMgr, sdkMgr, (s) => {
+        if (s.sourceFolder) {
+            treeProvider.setSourceFolder(s.sourceFolder);
+            buildMgr.cmakeSourceDir = treeProvider.cmakeSource ?? s.sourceFolder;
+            treeProvider.setCmakeSource(treeProvider.cmakeSource ?? s.sourceFolder);
+            flashPanel.sourceFolder = s.sourceFolder;
+            debugMgr.sourceDir = s.sourceFolder;
+        }
+        if (s.chipName) { treeProvider.setChipName(s.chipName); }
+        statusBar.refreshBuildType();
+        treeProvider.refresh();
+    });
 
+    // Kill OpenOCD and return to extension view when the debug session stops
+    context.subscriptions.push(
+        vscode.debug.onDidTerminateDebugSession(() => {
+            debugMgr.stopOpenOcd();
+            vscode.commands.executeCommand('mcuBuildView.focus');
+        })
+    );
     // Refresh tree when toolchain status changes
     toolchainMgr.onDidChange(() => treeProvider.refresh(), null, context.subscriptions);
     // Poll CMSIS-DAP probe connection every 3 s, refresh tree on change
@@ -58,7 +80,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('mcuBuildView', treeProvider),
-        vscode.window.registerTreeDataProvider('mcuSdkView', sdkTreeProvider)
+        vscode.window.registerTreeDataProvider('mcuSdkView', sdkTreeProvider),
+        vscode.window.registerTreeDataProvider('mcuDocsView', docsTreeProvider)
     );
 
 
@@ -88,7 +111,7 @@ export function activate(context: vscode.ExtensionContext): void {
             try {
                 await vscode.window.withProgress(
                     { location: vscode.ProgressLocation.Notification, title: 'Compiling', cancellable: false },
-                    () => buildMgr.rebuild()
+                    (p) => buildMgr.rebuild((increment, message) => p.report({ increment, message }))
                 );
             } finally {
                 treeProvider.setCompiling(false);
@@ -111,6 +134,9 @@ export function activate(context: vscode.ExtensionContext): void {
                 canSelectFolders: true,
                 canSelectMany: false,
                 openLabel: 'Select Source Folder',
+                defaultUri: treeProvider.sourceFolder
+                    ? vscode.Uri.file(treeProvider.sourceFolder)
+                    : undefined,
             });
             if (uris?.[0]) {
                 const folder = uris[0].fsPath;
@@ -197,41 +223,37 @@ export function activate(context: vscode.ExtensionContext): void {
             treeProvider.setFlashing(true);
             try {
                 await vscode.window.withProgress(
-                    { location: vscode.ProgressLocation.Notification, title: 'Downloading', cancellable: false },
-                    async (p) => {
+                    { location: vscode.ProgressLocation.Notification, title: 'Downloading', cancellable: true },
+                    async (p, token) => {
+                        token.onCancellationRequested(() => debugMgr.cancelFlash());
+
                         let lastOverall = 0;
                         let sawErase = false;
                         p.report({ increment: 0, message: '0%' });
 
-                        let resolveFlash!: () => void;
-                        const flashPhase = new Promise<void>(r => resolveFlash = r);
-
-                        const flashDone = debugMgr.flashWithOpenOcd((phase, pct) => {
-                            // Map erase → 0–50%, write → 50–100% (or 0–100% if no erase)
-                            let overall: number;
-                            let label: string;
-                            if (phase === 'erase') {
-                                sawErase = true;
-                                overall = Math.round(pct / 2);
-                                label = `Erasing ${pct}%`;
-                            } else {
-                                overall = sawErase ? 50 + Math.round(pct / 2) : pct;
-                                label = `Writing ${pct}%`;
-                            }
-                            if (overall > lastOverall) {
-                                p.report({ increment: overall - lastOverall, message: label });
-                                lastOverall = overall;
-                            }
-                            if (phase === 'flash' && pct >= 100) { resolveFlash(); }
-                        });
-
                         try {
-                            await flashPhase;
-                            await flashDone;
+                            await debugMgr.flashWithOpenOcd((phase, pct) => {
+                                // Map erase → 0–50%, write → 50–100% (or 0–100% if no erase)
+                                let overall: number;
+                                let label: string;
+                                if (phase === 'erase') {
+                                    sawErase = true;
+                                    overall = Math.round(pct / 2);
+                                    label = `Erasing ${pct}%`;
+                                } else {
+                                    overall = sawErase ? 50 + Math.round(pct / 2) : pct;
+                                    label = `Writing ${pct}%`;
+                                }
+                                if (overall > lastOverall) {
+                                    p.report({ increment: overall - lastOverall, message: label });
+                                    lastOverall = overall;
+                                }
+                            });
                         } catch (err: unknown) {
                             const msg = err instanceof Error ? err.message : String(err);
-                            vscode.window.showErrorMessage(`Flash failed: ${msg}`);
-                            return; // cancel — dismiss progress notification
+                            if (msg !== 'Cancelled') {
+                                vscode.window.showErrorMessage(`Flash failed: ${msg}`);
+                            }
                         }
                     }
                 );
@@ -268,6 +290,18 @@ export function activate(context: vscode.ExtensionContext): void {
         }],
         ['mcuBuild.sdk.openAsWorkspace', (folderPath: unknown) => {
             vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPath as string));
+        }],
+        ['mcuBuild.openSettings',            () => settingsPanel.open()],
+        ['mcuBuild.openDocs', () => {
+            vscode.commands.executeCommand('mcuDocsView.focus');
+        }],
+        ['mcuBuild.openDocsAt', async (uri: unknown, line: unknown) => {
+            const doc = await vscode.workspace.openTextDocument(uri as vscode.Uri);
+            await vscode.window.showTextDocument(doc, {
+                preview: true,
+                selection: new vscode.Range(line as number, 0, line as number, 0),
+            });
+            vscode.commands.executeCommand('markdown.showPreview', uri as vscode.Uri);
         }],
         ['mcuBuild.selectBuildType',   async () => {
             const types: BuildType[] = ['Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel'];

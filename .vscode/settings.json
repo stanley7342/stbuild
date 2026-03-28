@@ -12,5 +12,6 @@
 	"mcuBuild.cmake.configFile": "c:\\v2.2.0\\examples\\helloworld\\default-rt584l-evb.config",
 	"[Log]": {
 		"editor.wordWrap": "on"
-	}
+	},
+	"output.smartScroll.enabled": false
 }

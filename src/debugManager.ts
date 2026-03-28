@@ -5,7 +5,8 @@ import { exec } from 'child_process';
 
 export interface ProbeInfo {
     connected: boolean;
-    name?: string;   // friendly name / serial
+    name?: string;   // friendly name
+    iceId?: string;  // USB serial / ICE ID
 }
 
 export class DebugManager {
@@ -14,6 +15,8 @@ export class DebugManager {
 
     private _probe: ProbeInfo = { connected: false };
     private _probeTimer: ReturnType<typeof setInterval> | undefined;
+    private _openocdTerminal: vscode.Terminal | undefined;
+    private _flashProc: import('child_process').ChildProcess | undefined;
 
     constructor(private readonly output: vscode.OutputChannel) {
         this.pollProbe();
@@ -27,7 +30,14 @@ export class DebugManager {
         this._probeTimer = setInterval(async () => {
             const prev = this._probe.connected;
             this._probe = await this.detectProbe();
-            if (this._probe.connected !== prev) { onChanged(); }
+            if (this._probe.connected !== prev) {
+                if (this._probe.connected) {
+                    this.output.appendLine(`[CMSIS-DAP] ID: ${this._probe.iceId ?? 'Unknown'}`)
+                } else {
+                    this.output.appendLine(`[CMSIS-DAP] Disconnected`);
+                }
+                onChanged();
+            }
         }, 3000);
     }
 
@@ -44,17 +54,33 @@ export class DebugManager {
         return new Promise(resolve => {
             let cmd: string;
             if (process.platform === 'win32') {
-                cmd = `powershell -NoProfile -Command "Get-PnpDevice -Status OK | Where-Object { $_.FriendlyName -match 'CMSIS-DAP|DAPLink|CMSIS_DAP|USB JTAG' } | Select-Object -First 1 -ExpandProperty FriendlyName"`;
+                // Return JSON with FriendlyName and InstanceId (contains USB serial as last segment)
+                cmd = `powershell -NoProfile -Command "` +
+                    `$d = Get-PnpDevice -Status OK | Where-Object { $_.FriendlyName -match 'CMSIS-DAP|DAPLink|CMSIS_DAP|USB JTAG' } | Select-Object -First 1; ` +
+                    `if ($d) { Write-Output ($d.FriendlyName + '|' + $d.InstanceId) } else { exit 1 }"`;
             } else if (process.platform === 'darwin') {
-                cmd = `system_profiler SPUSBDataType 2>/dev/null | grep -i -A2 'cmsis-dap\\|daplink' | head -4`;
+                cmd = `system_profiler SPUSBDataType 2>/dev/null | grep -i -A4 'cmsis-dap\\|daplink' | head -8`;
             } else {
-                cmd = `lsusb 2>/dev/null | grep -i 'cmsis-dap\\|daplink'`;
+                cmd = `lsusb -v 2>/dev/null | grep -i -A5 'cmsis-dap\\|daplink' | head -12`;
             }
 
             exec(cmd, { timeout: 4000 }, (err, stdout) => {
                 const out = stdout.trim();
                 if (!err && out.length > 0) {
-                    resolve({ connected: true, name: out.split('\n')[0].trim() });
+                    if (process.platform === 'win32') {
+                        const [name, instanceId] = out.split('|');
+                        // InstanceId format: USB\VID_xxxx&PID_xxxx\<serial>
+                        const iceId = instanceId?.split('\\').pop()?.trim();
+                        resolve({ connected: true, name: name?.trim(), iceId });
+                    } else if (process.platform === 'darwin') {
+                        const nameLine = out.split('\n')[0].trim();
+                        const serialMatch = out.match(/Serial Number:\s*(.+)/i);
+                        resolve({ connected: true, name: nameLine, iceId: serialMatch?.[1]?.trim() });
+                    } else {
+                        const nameLine = out.split('\n')[0].trim();
+                        const serialMatch = out.match(/iSerial\s+\d+\s+(\S+)/i);
+                        resolve({ connected: true, name: nameLine, iceId: serialMatch?.[1]?.trim() });
+                    }
                 } else {
                     resolve({ connected: false });
                 }
@@ -106,17 +132,23 @@ export class DebugManager {
 
     /** Search workspace for OpenOCD executable under known SDK paths */
     private detectWorkspaceOpenOcd(): string | undefined {
-        const ws = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!ws) { return undefined; }
         const platDir = process.platform === 'win32' ? 'win' : process.platform === 'darwin' ? 'mac' : 'linux';
         const exe = process.platform === 'win32' ? 'openocd.exe' : 'openocd';
-        const candidates = [
-            path.join(ws, 'tools', 'Debugger', 'OpenOCD', 'bin', platDir, exe),
-            path.join(ws, 'tools', 'Debugger', 'OpenOCD', 'bin', exe),
-            path.join(ws, 'toolchain', 'openocd', 'bin', exe),
-            path.join(ws, 'tools', 'openocd', exe),
-        ];
-        return candidates.find(p => fs.existsSync(p));
+        const searchRoots = [
+            this.sourceDir,
+            vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+        ].filter((r): r is string => Boolean(r));
+        for (const root of searchRoots) {
+            const candidates = [
+                path.join(root, 'tools', 'Debugger', 'OpenOCD', 'bin', platDir, exe),
+                path.join(root, 'tools', 'Debugger', 'OpenOCD', 'bin', exe),
+                path.join(root, 'toolchain', 'openocd', 'bin', exe),
+                path.join(root, 'tools', 'openocd', exe),
+            ];
+            const found = candidates.find(p => fs.existsSync(p));
+            if (found) { return found; }
+        }
+        return undefined;
     }
 
     /** Given the OpenOCD exe path, find its adjacent script/scripts directory */
@@ -196,7 +228,8 @@ export class DebugManager {
      */
     private startOpenOcdTerminal(scriptFile: string): void {
         const soc = this.device.toLowerCase();
-        vscode.window.terminals.find(t => t.name === 'OpenOCD (RT58x)')?.dispose();
+        this._openocdTerminal?.dispose();
+        this._openocdTerminal = undefined;
 
         let cmd: string;
         if (process.platform === 'win32') {
@@ -214,8 +247,28 @@ export class DebugManager {
 
         this.output.appendLine(`[史丹利測試] Terminal cmd: ${cmd}`);
         const term = vscode.window.createTerminal({ name: 'OpenOCD (RT58x)' });
+        this._openocdTerminal = term;
         term.sendText(cmd, true);
         term.show(false);   // show but don't steal focus
+    }
+
+    /** Cancel a running flashWithOpenOcd() call by killing the child process */
+    cancelFlash(): void {
+        if (this._flashProc) {
+            this._flashProc.kill();
+            this._flashProc = undefined;
+            this.output.appendLine('[史丹利測試] Flash cancelled by user.');
+        }
+    }
+
+    /** Kill the running OpenOCD terminal (called when debug session terminates) */
+    stopOpenOcd(): void {
+        if (this._openocdTerminal) {
+            this._openocdTerminal.sendText('\x03');   // Ctrl+C — interrupt the process
+            this._openocdTerminal.dispose();
+            this._openocdTerminal = undefined;
+            this.output.appendLine('[史丹利測試] OpenOCD terminated.');
+        }
     }
 
     /** Flash firmware to target using OpenOCD's "program … verify reset exit" command */
@@ -260,7 +313,7 @@ export class DebugManager {
         this.output.show(false);
 
         // Run OpenOCD as a tracked child process so callers can await completion
-        await new Promise<void>((resolve) => {
+        await new Promise<void>((resolve, reject) => {
             const args: string[] = [
                 ...(scriptDir ? ['-s', scriptDir] : []),
                 '-f', 'interface/cmsis-dap.cfg',
@@ -268,6 +321,7 @@ export class DebugManager {
                 '-c', `program {${elfForOcd}} verify reset exit`,
             ];
             const proc = require('child_process').spawn(openocdExe, args, { stdio: 'pipe' });
+            this._flashProc = proc;
 
             // Phase-aware progress: erase 0-100% and write 0-100% tracked separately
             let currentPhase: 'erase' | 'write' | 'none' = 'none';
@@ -314,22 +368,26 @@ export class DebugManager {
             };
             proc.stdout?.on('data', onData);
             proc.stderr?.on('data', onData);
-            proc.on('close', (code: number) => {
+            proc.on('close', (code: number | null, signal: string | null) => {
+                this._flashProc = undefined;
                 if (lineBuf) { flushLine(lineBuf); lineBuf = ''; }
-                if (code === 0) {
+                if (signal) {
+                    // Killed by cancelFlash()
+                    reject(new Error('Cancelled'));
+                } else if (code === 0) {
                     reportWrite(100);
                     this.output.appendLine(`[史丹利測試] Flash done ✓`);
                     vscode.window.showInformationMessage(`Flash done ✓  ${path.basename(elf!)}`);
+                    resolve();
                 } else {
                     this.output.appendLine(`[史丹利測試] Flash failed (exit ${code})`);
-                    vscode.window.showErrorMessage(`Flash failed (exit ${code})`);
+                    reject(new Error(`Flash failed (exit ${code})`));
                 }
-                resolve();
             });
             proc.on('error', (err: Error) => {
+                this._flashProc = undefined;
                 this.output.appendLine(`[史丹利測試] Flash error: ${err.message}`);
-                vscode.window.showErrorMessage(`OpenOCD error: ${err.message}`);
-                resolve();
+                reject(err);
             });
         });
     }
@@ -428,10 +486,12 @@ export class DebugManager {
     }
 
     async selectElf(): Promise<void> {
+        const buildDir = this.sourceDir ? path.join(this.sourceDir, 'build') : undefined;
         const uris = await vscode.window.showOpenDialog({
             canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
             openLabel: 'Select ELF File',
             filters: { 'ELF files': ['elf', 'out', 'axf'], 'All files': ['*'] },
+            defaultUri: buildDir ? vscode.Uri.file(buildDir) : undefined,
         });
         if (uris?.[0]) { this.elfFile = uris[0].fsPath; }
     }

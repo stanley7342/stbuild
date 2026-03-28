@@ -105,8 +105,9 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
                 new McuBuildItem('Output Files', vscode.TreeItemCollapsibleState.Expanded, undefined, 'package'),
                 new McuBuildItem('Flash', vscode.TreeItemCollapsibleState.Expanded, undefined, 'zap'),
                 new McuBuildItem('Serial Monitor', vscode.TreeItemCollapsibleState.Expanded, undefined, 'terminal'),
-                new McuBuildItem('Toolchain', vscode.TreeItemCollapsibleState.Collapsed, undefined, 'server-environment'),
-                new McuBuildItem('CMSIS-DAP Debug', vscode.TreeItemCollapsibleState.Collapsed, undefined, 'debug-alt'),
+                new McuBuildItem('Toolchain', vscode.TreeItemCollapsibleState.Expanded, undefined, 'server-environment'),
+                new McuBuildItem('CMSIS-DAP Debug', vscode.TreeItemCollapsibleState.Expanded, undefined, 'debug-alt'),
+                new McuBuildItem('Settings', vscode.TreeItemCollapsibleState.None, 'mcuBuild.openSettings', 'settings-gear'),
             ];
         }
 
@@ -138,7 +139,7 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
                         vscode.TreeItemCollapsibleState.None,
                         this.toolchain.armInstalled ? undefined : 'mcuBuild.installArmToolchain',
                         this.toolchain.armInstalled ? 'pass' : 'cloud-download',
-                        this.toolchain.armInstalled ? `已安裝 ${this.toolchain.armStatus}` : this.toolchain.armStatus,
+                        this.toolchain.armInstalled ? `Installed ${this.toolchain.armStatus}` : this.toolchain.armStatus,
                         this.toolchain.armInstalled ? 'armToolchainOk' : 'armToolchain'
                     ),
                     new McuBuildItem(
@@ -146,7 +147,7 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
                         vscode.TreeItemCollapsibleState.None,
                         this.toolchain.cmakeInstalled ? undefined : 'mcuBuild.installCmake',
                         this.toolchain.cmakeInstalled ? 'pass' : 'cloud-download',
-                        this.toolchain.cmakeInstalled ? `已安裝 ${this.toolchain.cmakeStatus}` : this.toolchain.cmakeStatus,
+                        this.toolchain.cmakeInstalled ? `Installed ${this.toolchain.cmakeStatus}` : this.toolchain.cmakeStatus,
                         this.toolchain.cmakeInstalled ? 'cmakeToolchainOk' : 'cmakeToolchain'
                     ),
                     new McuBuildItem(
@@ -154,7 +155,7 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
                         vscode.TreeItemCollapsibleState.None,
                         this.toolchain.ninjaInstalled ? undefined : 'mcuBuild.installNinja',
                         this.toolchain.ninjaInstalled ? 'pass' : 'cloud-download',
-                        this.toolchain.ninjaInstalled ? `已安裝 ${this.toolchain.ninjaStatus}` : this.toolchain.ninjaStatus,
+                        this.toolchain.ninjaInstalled ? `Installed ${this.toolchain.ninjaStatus}` : this.toolchain.ninjaStatus,
                         this.toolchain.ninjaInstalled ? 'ninjaToolchainOk' : 'ninjaToolchain'
                     ),
                     new McuBuildItem('Refresh Status', vscode.TreeItemCollapsibleState.None, 'mcuBuild.refreshToolchain', 'sync', undefined, 'refreshToolchain'),
@@ -163,28 +164,29 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
                 return this.listOutputFiles();
             case 'Flash':
                 return [
-                    new McuBuildItem('Flash Firmware', vscode.TreeItemCollapsibleState.None, 'mcuBuild.flash', 'zap', undefined, 'flash'),
                     new McuBuildItem('Open Flash Panel (UART)', vscode.TreeItemCollapsibleState.None, 'mcuBuild.openFlashPanel', 'arrow-circle-down', undefined, 'openFlashPanel'),
                 ];
             case 'Serial Monitor':
                 return [
                     new McuBuildItem('Open Serial Monitor', vscode.TreeItemCollapsibleState.None, 'mcuBuild.openSerialMonitor', 'terminal', undefined, 'openSerial'),
-                    new McuBuildItem('Select Port', vscode.TreeItemCollapsibleState.None, 'mcuBuild.selectSerialPort', 'plug', this.config.serialPort || 'not set', 'selectPort'),
                 ];
             case 'Project':
                 return this.listDir(this._sourceFolder);
             case 'CMSIS-DAP Debug': {
                 const dbg = this.debug;
                 const probe = dbg?.probe;
+                const probeDesc = probe?.connected
+                    ? (probe.iceId ? `ID: ${probe.iceId}` : 'CMSIS-DAP')
+                    : undefined;
                 const probeItem = probe?.connected
-                    ? new McuBuildItem('Connected', vscode.TreeItemCollapsibleState.None, undefined, undefined, probe.name ?? 'CMSIS-DAP', 'probeConnected')
+                    ? new McuBuildItem('Connected', vscode.TreeItemCollapsibleState.None, undefined, undefined, probeDesc, 'probeConnected')
                     : new McuBuildItem('Not Connected', vscode.TreeItemCollapsibleState.None, undefined, undefined, undefined, 'probeDisconnected');
                 probeItem.iconPath = probe?.connected
                     ? new vscode.ThemeIcon('debug-alt', new vscode.ThemeColor('testing.iconPassed'))
                     : new vscode.ThemeIcon('debug-disconnect', new vscode.ThemeColor('testing.iconFailed'));
                 return [
                     probeItem,
-                    new McuBuildItem('Start Debug', vscode.TreeItemCollapsibleState.None, 'mcuBuild.startDebug', 'debug-start', undefined, 'debugStart'),
+                    new McuBuildItem('Start', vscode.TreeItemCollapsibleState.None, 'mcuBuild.startDebug', 'debug-start', undefined, 'debugStart'),
                     (() => {
                         const item = new McuBuildItem(
                             this._flashing ? 'Flashing...' : 'Flash',

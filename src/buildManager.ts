@@ -28,7 +28,7 @@ export class BuildManager implements vscode.Disposable {
         this._onStatusChanged.fire(status);
     }
 
-    async build(): Promise<boolean> {
+    async build(onProgress?: (increment: number, message: string) => void): Promise<boolean> {
         const root = this.config.getWorkspaceRoot();
         if (!root) {
             vscode.window.showErrorMessage('不關我的事，哈哈!');
@@ -93,7 +93,7 @@ export class BuildManager implements vscode.Disposable {
         this.setStatus('building');
         this.output.appendLine(`> cmake ${buildArgs.join(' ')}\n`);
 
-        const ok = await this.spawn('cmake', buildArgs, buildDir);
+        const ok = await this.spawn('cmake', buildArgs, buildDir, onProgress);
         this.setStatus(ok ? 'success' : 'failed');
 
         if (ok) {
@@ -126,9 +126,9 @@ export class BuildManager implements vscode.Disposable {
         return ok;
     }
 
-    async rebuild(): Promise<boolean> {
+    async rebuild(onProgress?: (increment: number, message: string) => void): Promise<boolean> {
         await this.clean();
-        return this.build();
+        return this.build(onProgress);
     }
 
     cancel(): void {
@@ -140,17 +140,41 @@ export class BuildManager implements vscode.Disposable {
         }
     }
 
-    private spawn(command: string, args: string[], cwd: string): Promise<boolean> {
+    private spawn(
+        command: string,
+        args: string[],
+        cwd: string,
+        onProgress?: (increment: number, message: string) => void
+    ): Promise<boolean> {
         return new Promise((resolve) => {
             this.currentProcess = cp.spawn(command, args, { cwd, shell: true });
 
-            this.currentProcess.stdout?.on('data', (chunk: Buffer) => {
-                this.output.append(chunk.toString());
-            });
-            this.currentProcess.stderr?.on('data', (chunk: Buffer) => {
-                this.output.append(chunk.toString());
-            });
+            let lastPct = 0;
+            let lineBuf = '';
+
+            const parseLine = (line: string) => {
+                this.output.appendLine(line);
+                if (!onProgress) { return; }
+                // Ninja progress: [x/y] Building C object .../foo.c.obj
+                const m = line.match(/^\[(\d+)\/(\d+)\]\s+(.*)/);
+                if (!m) { return; }
+                const pct = Math.round((parseInt(m[1], 10) / parseInt(m[2], 10)) * 100);
+                const file = path.basename(m[3].replace(/^.*\s/, '').replace(/\.obj$/, ''));
+                const inc = Math.max(0, pct - lastPct);
+                lastPct = pct;
+                onProgress(inc, `[${m[1]}/${m[2]}] ${file}`);
+            };
+
+            const onData = (chunk: Buffer) => {
+                const raw = (lineBuf + chunk.toString()).split('\n');
+                lineBuf = raw.pop() ?? '';
+                for (const line of raw) { parseLine(line.trimEnd()); }
+            };
+
+            this.currentProcess.stdout?.on('data', onData);
+            this.currentProcess.stderr?.on('data', onData);
             this.currentProcess.on('close', (code) => {
+                if (lineBuf) { parseLine(lineBuf); lineBuf = ''; }
                 this.currentProcess = null;
                 resolve(code === 0);
             });

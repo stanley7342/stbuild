@@ -49,11 +49,20 @@ export class FlashPanel {
             this.panel = undefined;
         });
 
-        // List ports + auto-detect bin once the panel is ready
+        // List ports + restore saved state + auto-detect bin once the panel is ready
         this.ensureBridge().then(() => {
             this.sendPortList();
+            this.sendSavedState();
             this.sendAutoBin();
         });
+    }
+
+    private sendSavedState(): void {
+        const port = this.context.workspaceState.get<string>('mcuFlash.port');
+        const bin  = this.context.workspaceState.get<string>('mcuFlash.binFile');
+        if (port || bin) {
+            this.postToWebview({ type: 'restoreState', port: port ?? '', bin: bin ?? '' });
+        }
     }
 
     /** Scan build dir for .bin files and pre-fill the panel */
@@ -121,7 +130,7 @@ export class FlashPanel {
 
     // ── Webview message handler ────────────────────────────────────────────────
 
-    private async handleMessage(msg: { type: string; port?: string; binFile?: string }): Promise<void> {
+    private async handleMessage(msg: { type: string; port?: string; binFile?: string; bin?: string }): Promise<void> {
         switch (msg.type) {
             case 'listPorts':
                 this.sendPortList();
@@ -135,11 +144,18 @@ export class FlashPanel {
                     filters: { 'Binary files': ['bin'], 'All files': ['*'] },
                 });
                 if (uris?.[0]) {
-                    this.postToWebview({ type: 'binSelected', path: uris[0].fsPath });
+                    const binPath = uris[0].fsPath;
+                    this.context.workspaceState.update('mcuFlash.binFile', binPath);
+                    this.postToWebview({ type: 'binSelected', path: binPath });
                 }
                 break;
             }
+            case 'portChanged':
+                if (msg.port) { this.context.workspaceState.update('mcuFlash.port', msg.port); }
+                break;
             case 'flash':
+                if (msg.port)    { this.context.workspaceState.update('mcuFlash.port', msg.port); }
+                if (msg.binFile) { this.context.workspaceState.update('mcuFlash.binFile', msg.binFile); }
                 await this.doFlash(msg.port ?? '', msg.binFile ?? '');
                 break;
             case 'cancel':
@@ -366,6 +382,10 @@ document.getElementById('refreshPortsBtn').addEventListener('click', () => {
   vscode.postMessage({ type: 'listPorts' });
 });
 
+portSel.addEventListener('change', () => {
+  vscode.postMessage({ type: 'portChanged', port: portSel.value });
+});
+
 document.getElementById('browseBtn').addEventListener('click', () => {
   vscode.postMessage({ type: 'browseBin' });
 });
@@ -390,7 +410,7 @@ document.getElementById('logToggle').addEventListener('click', () => {
 window.addEventListener('message', ({ data: msg }) => {
   switch (msg.type) {
     case 'portList': {
-      const cur = portSel.value;
+      const cur = portSel.value || portSel.dataset.savedPort || '';
       portSel.innerHTML = msg.ports.length
         ? msg.ports.map(p => \`<option value="\${p.value}">\${p.label}</option>\`).join('')
         : '<option value="">-- no ports --</option>';
@@ -399,6 +419,15 @@ window.addEventListener('message', ({ data: msg }) => {
     }
     case 'binSelected':
       binPath.value = msg.path;
+      break;
+    case 'restoreState':
+      if (msg.port) {
+        portSel.dataset.savedPort = msg.port;
+        if (!portSel.value && Array.from(portSel.options).some(o => o.value === msg.port)) {
+          portSel.value = msg.port;
+        }
+      }
+      if (msg.bin && !binPath.value) { binPath.value = msg.bin; }
       break;
     case 'flashStart':
       flashBtn.disabled = true;

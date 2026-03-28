@@ -173,7 +173,7 @@ export class SerialMonitor implements vscode.Disposable {
     }
 
     private buildHtml(initialPort: string, initialBaud: number): string {
-        const baudRates = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
+        const baudRates = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600, 2000000];
         const baudOptions = baudRates
             .map(b => `<option value="${b}"${b === initialBaud ? ' selected' : ''}>${b}</option>`)
             .join('');
@@ -260,6 +260,29 @@ export class SerialMonitor implements vscode.Disposable {
 const vscode = acquireVsCodeApi();
 let connected = false;
 let dataBuf = '';
+let pendingText = '';
+let rafPending = false;
+const MAX_LINES = 5000;
+
+function flushPending() {
+  rafPending = false;
+  if (!pendingText) { return; }
+  const text = pendingText;
+  pendingText = '';
+  appendAnsiDirect(text);
+  // Trim excess lines
+  const spans = content.childNodes;
+  let lineCount = 0;
+  for (const n of spans) { lineCount += (n.textContent.match(/\\n/g) || []).length; }
+  while (lineCount > MAX_LINES && content.firstChild) {
+    const removed = (content.firstChild.textContent.match(/\\n/g) || []).length;
+    content.removeChild(content.firstChild);
+    lineCount -= removed;
+  }
+  if (document.getElementById('autoScrollChk').checked) {
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+}
 
 const portSel    = document.getElementById('portSel');
 const portManual = document.getElementById('portManual');
@@ -446,27 +469,40 @@ function parseAnsi(text) {
 function appendData(text) {
   const ts = document.getElementById('timestampChk').checked;
   if (!ts) {
-    appendAnsi(text);
+    pendingText += text;
+    if (!rafPending) { rafPending = true; requestAnimationFrame(flushPending); }
     return;
   }
   dataBuf += text;
   const lines = dataBuf.split('\\n');
   dataBuf = lines.pop();
   for (const line of lines) {
-    appendRaw('[' + new Date().toLocaleTimeString() + '] ', '#888');
-    appendAnsi(line + '\\n');
+    pendingText += '[' + new Date().toLocaleTimeString() + '] ' + line + '\\n';
   }
-  if (dataBuf.length > 0) { appendAnsi(dataBuf); dataBuf = ''; }
+  if (dataBuf.length > 0) { pendingText += dataBuf; dataBuf = ''; }
+  if (!rafPending) { rafPending = true; requestAnimationFrame(flushPending); }
 }
 
-function appendAnsi(text) {
-  for (const seg of parseAnsi(text)) {
+function appendAnsiDirect(text) {
+  const segs = parseAnsi(text);
+  // Merge adjacent segments with same style to minimise DOM nodes
+  const merged = [];
+  for (const s of segs) {
+    const prev = merged[merged.length - 1];
+    if (prev && prev.color === s.color && prev.bold === s.bold) { prev.text += s.text; }
+    else { merged.push({ ...s }); }
+  }
+  for (const seg of merged) {
     const span = document.createElement('span');
     span.textContent = seg.text;
     if (seg.color) { span.style.color = seg.color; }
     if (seg.bold)  { span.style.fontWeight = 'bold'; }
     content.appendChild(span);
   }
+}
+
+function appendAnsi(text) {
+  appendAnsiDirect(text);
   if (document.getElementById('autoScrollChk').checked) {
     terminal.scrollTop = terminal.scrollHeight;
   }
