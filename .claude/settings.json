@@ -9,7 +9,19 @@
       "Bash(ls \"C:\\\\Users\\\\Stanley\\\\Rafael-IoT-SDK-Internal\\\\tools\\\\Debugger\\\\OpenOCD\\\\bin\\\\win\"\" 2>/dev/null && ls \"C:UsersStanleyRafael-IoT-SDK-InternaltoolsDebuggerOpenOCD\"\")",
       "Bash(find C:/Users/Stanley/Rafael-IoT-SDK-Internal/tools/Debugger/OpenOCD -name *.cfg)",
       "Bash(grep -E '\\\\.\\(ts|js\\)$')",
-      "Bash(grep -E \"\\\\.ts$\")"
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(cmd.exe /c \"for %I in \\(\"\"C:\\\\Program Files\\\\CMake\\\\bin\\\\cmake.exe\"\"\\) do echo %~sI\")",
+      "Bash(cmd.exe /c \"dir /x \"\"C:\\\\Program Files\\\\CMake\\\\bin\\\\cmake.exe\"\"\")",
+      "Bash(cmd.exe /c \"dir /x \"\"C:\\\\Program Files\\\\CMake\"\"\")",
+      "Bash(powershell -Command \"\\(New-Object -ComObject Scripting.FileSystemObject\\).GetFile\\(''C:\\\\Program Files\\\\CMake\\\\bin\\\\cmake.exe''\\).ShortPath\")",
+      "Bash(git -C \"c:/Users/Stanley/Rafael-IoT-SDK-Internal\" status --short examples/thread/ot-cli-ftd/)",
+      "Bash(git -C \"c:/Users/Stanley/Rafael-IoT-SDK-Internal\" ls-files examples/thread/ot-cli-ftd/CMakeFiles/rules.ninja)",
+      "Bash(grep -v \"^#\\\\|^$\\\\|^//\" \"c:/Users/Stanley/Rafael-IoT-SDK-Internal/examples/thread/ot-cli-ftd/CMakeCache.txt\")",
+      "Bash(\"C:/Program Files/CMake/bin/cmake.exe\" \"c:/Users/Stanley/Rafael-IoT-SDK-Internal/examples/thread/ot-cli-ftd\")",
+      "Bash(\"C:/Program Files/CMake/bin/cmake.exe\" \"c:/Users/Stanley/Rafael-IoT-SDK-Internal/examples/thread/ot-cli-ftd/build\")",
+      "Bash(\"C:/Program Files/CMake/bin/cmake.exe\" \"c:/Users/Stanley/Rafael-IoT-SDK-Internal/examples/thread/ot-cli-ftd/ot-cli-ftd/build\")",
+      "Bash(powershell -Command \":*)",
+      "Bash(grep -v \"^//\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Stanley\\stbuild"

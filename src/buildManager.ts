@@ -64,6 +64,7 @@ export class BuildManager implements vscode.Disposable {
             '-B', buildDir,
             '-G', 'Ninja',
             `-DCMAKE_BUILD_TYPE=${this.config.buildType}`,
+            `-DCMAKE_MAKE_PROGRAM=${this.config.ninjaPath}`,
         ];
         if (this.config.configFile) {
             const relConfig = path.relative(root, this.config.configFile).replace(/\\/g, '/');
@@ -79,7 +80,7 @@ export class BuildManager implements vscode.Disposable {
         this.output.appendLine(`\n[史丹利測試] ── Configure + Build ──────────────────────`);
         this.output.appendLine(`> cmake ${configArgs.join(' ')}\n`);
 
-        const configured = await this.spawn('cmake', configArgs, root);
+        const configured = await this.spawn(this.config.cmakePath, configArgs, root);
         if (!configured) {
             this.setStatus('failed');
             vscode.window.showErrorMessage('史丹利測試: Configure failed. See Output panel for details.');
@@ -93,7 +94,7 @@ export class BuildManager implements vscode.Disposable {
         this.setStatus('building');
         this.output.appendLine(`> cmake ${buildArgs.join(' ')}\n`);
 
-        const ok = await this.spawn('cmake', buildArgs, buildDir, onProgress);
+        const ok = await this.spawn(this.config.cmakePath, buildArgs, buildDir, onProgress);
         this.setStatus(ok ? 'success' : 'failed');
 
         if (ok) {
@@ -118,7 +119,7 @@ export class BuildManager implements vscode.Disposable {
         this.output.appendLine(`\n[史丹利測試] ── Clean ────────────────────────`);
         this.output.appendLine(`> cmake ${cleanArgs.join(' ')}\n`);
 
-        const ok = await this.spawn('cmake', cleanArgs, buildDir);
+        const ok = await this.spawn(this.config.cmakePath, cleanArgs, buildDir);
         if (ok) {
             this.output.appendLine('\n[史丹利測試] Clean successful.\n');
             vscode.window.showInformationMessage('史丹利測試: Clean successful.');

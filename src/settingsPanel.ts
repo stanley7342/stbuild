@@ -8,6 +8,8 @@ export interface SettingsData {
     configFile: string;
     chipName: string;
     buildType: string;
+    cmakePath: string;
+    ninjaPath: string;
     elfFile: string;
     gdbPath: string;
     openocdPath: string;
@@ -59,6 +61,8 @@ export class SettingsPanel {
             configFile:     this.config.configFile,
             chipName:       this.config.chipName,
             buildType:      this.config.buildType,
+            cmakePath:      this.config.cmakePath,
+            ninjaPath:      this.config.ninjaPath,
             elfFile:        dbg.get<string>('elfFile', ''),
             gdbPath:        dbg.get<string>('gdbPath', ''),
             openocdPath:    dbg.get<string>('openocdPath', ''),
@@ -111,6 +115,8 @@ export class SettingsPanel {
         this.config.configFile  = s.configFile;
         this.config.chipName    = s.chipName;
         this.config.buildType   = s.buildType as BuildType;
+        this.config.cmakePath   = s.cmakePath  || 'cmake';
+        this.config.ninjaPath   = s.ninjaPath   || 'ninja';
         // Debug
         await dbg.update('elfFile',      s.elfFile,      ws);
         await dbg.update('gdbPath',      s.gdbPath,      ws);
@@ -241,6 +247,8 @@ button.browse:hover { filter: brightness(1.15); }
     ${selRow('Chip Name',  'chipName',
         `<option value="">-- not set --</option>${opts(chips, d.chipName)}`)}
     ${selRow('Build Type', 'buildType', opts(buildTypes, d.buildType))}
+    ${row('CMake Path',    'cmakePath', d.cmakePath, 'cmake', 'cmakePath')}
+    ${row('Ninja Path',    'ninjaPath', d.ninjaPath, 'ninja', 'ninjaPath')}
 </div>
 
 <div class="section">
@@ -272,7 +280,7 @@ button.browse:hover { filter: brightness(1.15); }
 </div>
 <script>
 const vscode = acquireVsCodeApi();
-const FIELDS = ['sourceFolder','configFile','chipName','buildType',
+const FIELDS = ['sourceFolder','configFile','chipName','buildType','cmakePath','ninjaPath',
                 'elfFile','gdbPath','openocdPath','interfaceCfg','targetCfg',
                 'flashPort','flashBinFile','serialPort','serialBaudRate','sdkInstallPath'];
 const feedback = document.getElementById('feedback');

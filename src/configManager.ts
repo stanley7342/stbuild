@@ -25,6 +25,22 @@ export class ConfigManager {
         this.cfg.update('cmake.buildType', value, vscode.ConfigurationTarget.Workspace);
     }
 
+    get cmakePath(): string {
+        return this.cfg.get<string>('cmake.cmakePath', 'cmake');
+    }
+
+    set cmakePath(value: string) {
+        this.cfg.update('cmake.cmakePath', value, vscode.ConfigurationTarget.Workspace);
+    }
+
+    get ninjaPath(): string {
+        return this.cfg.get<string>('cmake.ninjaPath', 'ninja');
+    }
+
+    set ninjaPath(value: string) {
+        this.cfg.update('cmake.ninjaPath', value, vscode.ConfigurationTarget.Workspace);
+    }
+
     get toolchainFile(): string {
         return this.cfg.get<string>('cmake.toolchainFile', '');
     }

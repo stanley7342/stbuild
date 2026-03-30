@@ -105,7 +105,7 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
                 new McuBuildItem('Output Files', vscode.TreeItemCollapsibleState.Expanded, undefined, 'package'),
                 new McuBuildItem('Flash', vscode.TreeItemCollapsibleState.Expanded, undefined, 'zap'),
                 new McuBuildItem('Serial Monitor', vscode.TreeItemCollapsibleState.Expanded, undefined, 'terminal'),
-                new McuBuildItem('Toolchain', vscode.TreeItemCollapsibleState.Expanded, undefined, 'server-environment'),
+                new McuBuildItem('Toolchain', vscode.TreeItemCollapsibleState.Expanded, undefined, 'server-environment', undefined, 'toolchainGroup'),
                 new McuBuildItem('CMSIS-DAP Debug', vscode.TreeItemCollapsibleState.Expanded, undefined, 'debug-alt'),
                 new McuBuildItem('Settings', vscode.TreeItemCollapsibleState.None, 'mcuBuild.openSettings', 'settings-gear'),
             ];
@@ -158,7 +158,6 @@ export class McuBuildTreeProvider implements vscode.TreeDataProvider<McuBuildIte
                         this.toolchain.ninjaInstalled ? `Installed ${this.toolchain.ninjaStatus}` : this.toolchain.ninjaStatus,
                         this.toolchain.ninjaInstalled ? 'ninjaToolchainOk' : 'ninjaToolchain'
                     ),
-                    new McuBuildItem('Refresh Status', vscode.TreeItemCollapsibleState.None, 'mcuBuild.refreshToolchain', 'sync', undefined, 'refreshToolchain'),
                 ];
             case 'Output Files':
                 return this.listOutputFiles();

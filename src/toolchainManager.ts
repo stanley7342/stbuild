@@ -88,6 +88,7 @@ export class ToolchainManager {
     async installCmake():        Promise<void> { await this.installWithVersionPicker(CMAKE_TOOL); }
     async installNinja():        Promise<void> { await this.installWithVersionPicker(NINJA_TOOL); }
 
+
     private async installWithVersionPicker(tool: ToolDef): Promise<void> {
         if (process.platform !== 'win32') {
             // macOS / Linux: no version picker, use package manager directly
@@ -203,6 +204,7 @@ export class ToolchainManager {
     }
 
     // ── PATH helpers ──────────────────────────────────────────────────────────
+
 
     private async autoConfigurePath(toolName: string): Promise<void> {
         const binDir = await this.findToolBinDir(toolName);

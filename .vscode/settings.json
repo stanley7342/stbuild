@@ -13,5 +13,7 @@
 	"[Log]": {
 		"editor.wordWrap": "on"
 	},
-	"output.smartScroll.enabled": false
+	"output.smartScroll.enabled": false,
+	"output.smartScroll.enabled": false,
+	"mcuBuild.debug.openocdPath": ""
 }

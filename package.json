@@ -233,6 +233,16 @@
           "default": "${workspaceFolder}/build",
           "description": "CMake build output directory"
         },
+        "mcuBuild.cmake.cmakePath": {
+          "type": "string",
+          "default": "C:/Users/Stanley/AppData/Local/Python/pythoncore-3.14-64/Lib/site-packages/cmake/data/bin/cmake.exe",
+          "description": "Path to the cmake executable"
+        },
+        "mcuBuild.cmake.ninjaPath": {
+          "type": "string",
+          "default": "ninja",
+          "description": "Path to the ninja executable"
+        },
         "mcuBuild.cmake.buildType": {
           "type": "string",
           "enum": [
@@ -494,12 +504,7 @@
         },
         {
           "command": "mcuBuild.refreshToolchain",
-          "when": "view == mcuBuildView && (viewItem == armToolchainOk || viewItem == cmakeToolchainOk || viewItem == ninjaToolchainOk)",
-          "group": "inline"
-        },
-        {
-          "command": "mcuBuild.refreshToolchain",
-          "when": "view == mcuBuildView && viewItem == refreshToolchain",
+          "when": "view == mcuBuildView && viewItem == toolchainGroup",
           "group": "inline"
         },
         {
