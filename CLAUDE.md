@@ -22,7 +22,46 @@ npm test                   # vscode-test (runs against out/test/**/*.test.js)
 
 Press F5 in VS Code to launch the Extension Development Host (see `.vscode/launch.json`).
 
-Package the extension with `vsce package` (produces a `.vsix`).
+## Packaging (.vsix)
+
+`vsce` is **not** in `devDependencies` — install it once globally, or invoke via `npx`:
+
+```bash
+npm install -g @vscode/vsce       # one-time global install
+# — or, no install —
+npx @vscode/vsce package          # runs without installing
+```
+
+Then from the repo root:
+
+```bash
+vsce package                       # → stbuild-<version>.vsix
+vsce package --out dist/           # write to a specific folder
+vsce package 1.0.1                 # bumps "version" in package.json then packages
+```
+
+What happens automatically:
+- `vscode:prepublish` script runs `npm run build -- --production` (esbuild minified, no sourcemaps) before packaging.
+- Files listed in `.vscodeignore` are excluded from the `.vsix`.
+- Output filename = `<name>-<version>.vsix` from `package.json` (currently `stbuild-1.0.0.vsix`).
+
+Install the produced `.vsix` locally to test:
+
+```bash
+code --install-extension stbuild-1.0.0.vsix
+```
+
+Or in VS Code: **Extensions** view → `…` menu → **Install from VSIX…**
+
+Publish to the VS Code Marketplace (requires a Personal Access Token from an Azure DevOps publisher account — see https://code.visualstudio.com/api/working-with-extensions/publishing-extension):
+
+```bash
+vsce login <publisher>
+vsce publish                       # uses current version
+vsce publish minor                 # bump + publish
+```
+
+Note: `package.json` does not declare a `publisher` field yet — `vsce publish` will fail until one is added.
 
 ## Architecture
 
